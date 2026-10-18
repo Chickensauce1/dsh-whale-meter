@@ -328,7 +328,103 @@ const snapPrice = await (await fetch(`${base}/api/whale-meter?force=1`)).json()
 const wb3 = snapPrice.providers.find((p) => p.provider === 'workbuddy')
 check('单价改成 18 后金额 = 18', Math.abs((wb3 ? wb3.totals.cost : 0) - 18) < 0.01, String(wb3 && wb3.totals.cost))
 
-/* ── 7. 截图 ───────────────────────────────────────────────────── */
+/* ── 7. 懒人通道：提示词 + 导入 ────────────────────────────────── */
+
+console.log('\n[pricing-ui] 懒人通道')
+await send('Runtime.evaluate', { expression: `document.getElementById('btnTipsToggle').click()` })
+await new Promise((r) => setTimeout(r, 400))
+
+const tips = await evalJson(`(function(){
+  var body = document.getElementById('tipsBody');
+  var prompt = document.getElementById('promptText').value;
+  return JSON.stringify({
+    open: body.hidden === false,
+    promptLen: prompt.length,
+    hasUnit: prompt.indexOf('百万 token') >= 0,
+    hasFields: prompt.indexOf('uncachedInputPerMillion') >= 0
+              && prompt.indexOf('outputPerMillion') >= 0,
+    hasMultiplierHint: prompt.indexOf('providerMultipliers') >= 0,
+    hasNoFenceRule: prompt.indexOf('代码围栏') >= 0,
+    mentionsProvider: prompt.indexOf('workbuddy') >= 0 || prompt.indexOf('供应商名') >= 0,
+  });
+})()`)
+
+check('懒人通道能展开', tips.open === true)
+check('提示词已生成', tips.promptLen > 300, `${tips.promptLen} 字符`)
+check('提示词写明了单位', tips.hasUnit === true)
+check('提示词写明了字段名', tips.hasFields === true)
+check('提示词给了倍率写法', tips.hasMultiplierHint === true)
+check('提示词要求纯 JSON（不要围栏）', tips.hasNoFenceRule === true)
+check('提示词带上了本机 provider', tips.mentionsProvider === true)
+
+/** 依次导入几段「AI 可能吐出来的脏格式」，验证容错。 */
+async function tryImport(raw, label) {
+  await send('Runtime.evaluate', {
+    expression: `(function(){
+      var box = document.getElementById('importText');
+      box.value = ${JSON.stringify(raw)};
+      document.getElementById('btnImport').click();
+    })()`,
+  })
+  await new Promise((r) => setTimeout(r, 350))
+  return evalJson(`(function(){
+    return JSON.stringify({
+      msg: document.getElementById('importMsg').textContent,
+      multRows: Array.from(document.querySelectorAll('#multList .mrow .pn')).map(function(e){return e.textContent}),
+      priceModels: Array.from(document.querySelectorAll('#priceRows tr[data-model]')).map(function(e){return e.getAttribute('data-model')}),
+    });
+  })()`)
+}
+
+// 7a. 标准 JSON
+const r1 = await tryImport('{"providerMultipliers":{"acme":0.75}}', '标准')
+check('标准 JSON 能导入', /已导入 1 项/.test(r1.msg), r1.msg)
+check('导入后出现在供应商列表', r1.multRows.indexOf('acme') >= 0, r1.multRows.join(','))
+
+// 7b. 带 ```json 围栏
+const r2 = await tryImport('```json\n{"providerMultipliers":{"fenced":0.5}}\n```', '围栏')
+check('带代码围栏也能导入', /已导入 1 项/.test(r2.msg), r2.msg)
+check('围栏内的 provider 生效', r2.multRows.indexOf('fenced') >= 0, r2.multRows.join(','))
+
+// 7c. 前后带解释文字
+const r3 = await tryImport('好的，这是结果：\n{"providerMultipliers":{"chatty":0.9}}\n希望有用！', '带闲聊')
+check('前后有文字也能导入', /已导入 1 项/.test(r3.msg), r3.msg)
+check('闲聊夹带的 provider 生效', r3.multRows.indexOf('chatty') >= 0, r3.multRows.join(','))
+
+// 7d. 价目结构（分档）
+const r4 = await tryImport(JSON.stringify({
+  pricing: {
+    'acme-model': {
+      peak: { uncachedInputPerMillion: 12, cacheReadPerMillion: 1.2, outputPerMillion: 36 },
+      offpeak: { uncachedInputPerMillion: 6, cacheReadPerMillion: 0.6, outputPerMillion: 18 },
+    },
+  },
+}), '分档价目')
+check('分档价目能导入', /已导入 1 项/.test(r4.msg), r4.msg)
+check('新模型出现在价目表', r4.priceModels.indexOf('acme-model') >= 0)
+
+// 7e. 平铺价目
+const r5 = await tryImport('{"pricing":{"flat-model":{"uncachedInputPerMillion":3,"outputPerMillion":9}}}', '平铺')
+check('平铺价目能导入', /已导入 1 项/.test(r5.msg), r5.msg)
+check('平铺模型出现在价目表', r5.priceModels.indexOf('flat-model') >= 0)
+
+// 7f. 垃圾输入不能崩
+const r6 = await tryImport('这不是 JSON', '垃圾')
+check('垃圾输入报错而不是静默', /失败/.test(r6.msg), r6.msg)
+
+// 7g. 导入后保存，确认真的落盘
+await send('Runtime.evaluate', { expression: `document.getElementById('btnSave').click()` })
+await new Promise((r) => setTimeout(r, 1600))
+let saved2 = {}
+try { saved2 = JSON.parse(readFileSync(cfgPath, 'utf8')) } catch { /* ignore */ }
+check('导入的倍率已落盘',
+  saved2.providerMultipliers && saved2.providerMultipliers.acme === 0.75,
+  JSON.stringify(saved2.providerMultipliers))
+check('导入的价目已落盘',
+  !!(saved2.pricing && saved2.pricing['acme-model']),
+  saved2.pricing && Object.keys(saved2.pricing).length + ' 个模型')
+
+/* ── 8. 截图 ───────────────────────────────────────────────────── */
 
 // 只截配置区本身：把上方图表藏掉，并把 max-height 放开，
 // 这样截图能一次看全所有配置项，不会因为 70vh 的滚动边界被切。

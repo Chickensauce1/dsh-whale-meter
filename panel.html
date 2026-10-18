@@ -246,6 +246,36 @@
   }
   button.ghost:hover { background: var(--hover); color: var(--ink); }
 
+  /* ── 懒人通道 ─────────────────────────────────────────────── */
+  .tips {
+    margin: 4px 0 18px; padding: 12px 14px;
+    border: 1px solid var(--line-1); border-radius: var(--r-sm);
+    background: var(--brand-soft, rgba(65,118,230,.05));
+  }
+  .tips-h { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+  .tips-h b { font-size: 13px; color: var(--ink); font-weight: 600; }
+  .tips-toggle { padding: 3px 10px; font-size: 11.5px; }
+  .tips-body { margin-top: 12px; }
+  .tips .steps {
+    margin: 0 0 12px; padding-left: 20px;
+    font-size: 12.5px; line-height: 1.75; color: var(--ink-2);
+  }
+  .tips .steps li { margin-bottom: 3px; }
+  .tips .steps b { color: var(--ink); font-weight: 600; }
+  .tips-sub {
+    display: flex; align-items: center; gap: 9px;
+    font-size: 12px; color: var(--ink-3); margin-bottom: 6px;
+  }
+  .tips textarea {
+    width: 100%; box-sizing: border-box; resize: vertical;
+    padding: 9px 11px; border-radius: 6px;
+    border: 1px solid var(--line-2, var(--line-1));
+    background: var(--bg); color: var(--ink);
+    font: 11.5px/1.65 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  }
+  .tips textarea:focus { outline: 2px solid var(--brand); outline-offset: -1px; border-color: transparent; }
+  .tips textarea[readonly] { color: var(--ink-2); }
+
   .mask { position: fixed; inset: 0; display: grid; place-items: center; background: var(--bg); z-index: 20; font-size: 12px; color: var(--ink-3); }
   .mask[hidden] { display: none; }
   .spin { width: 14px; height: 14px; border-radius: 50%; border: 2px solid var(--line-3); border-top-color: var(--brand); animation: sp .75s linear infinite; display: inline-block; vertical-align: -3px; margin-right: 8px; }
@@ -334,6 +364,39 @@
 
   <div class="sec cfg" id="cfgPanel">
     <h2>价目与预算 <span class="r">写入 ~/.dsh/whale-meter-pricing.json</span></h2>
+
+    <!-- ── 懒人通道 ───────────────────────────────────────────────
+         不是所有人愿意对着表格一格一格填。这里给一条「把活外包给 AI」的路：
+         用户把供应商的定价页丢给 AI，AI 按固定格式回一段 JSON，用户粘回配置区即可。
+         所以这个块必须提供两样东西：能一键复制的提示词 + 能一键导入的解析。
+         只写一句「问 AI」而不给提示词，等于什么都没给。 -->
+    <div class="tips" id="aiTips">
+      <div class="tips-h">
+        <b>不想手填？让 AI 帮你算</b>
+        <button class="ghost tips-toggle" id="btnTipsToggle">展开</button>
+      </div>
+      <div class="tips-body" id="tipsBody" hidden>
+        <ol class="steps">
+          <li>把你这家的<b>定价页链接</b>（或截图、或后台的「计费说明」）连同下面这段提示词一起发给任意 AI。</li>
+          <li>AI 会回一段 JSON。<b>整段粘到下面这个框里</b>，点「导入」。</li>
+          <li>核对右侧预览的数字没问题，点最下方「保存全部」。</li>
+        </ol>
+
+        <div class="tips-sub">
+          <span>提示词</span>
+          <button class="ghost" id="btnCopyPrompt">复制</button>
+          <span class="h" id="copyMsg"></span>
+        </div>
+        <textarea id="promptText" readonly rows="9"></textarea>
+
+        <div class="tips-sub" style="margin-top:12px">
+          <span>AI 回的 JSON 粘这里</span>
+          <button class="ghost" id="btnImport">导入</button>
+          <span class="h" id="importMsg"></span>
+        </div>
+        <textarea id="importText" rows="4" placeholder='{ "providerMultipliers": { "workbuddy": 0.8 } }'></textarea>
+      </div>
+    </div>
 
     <div class="fld"><label>每日预算</label><input id="fDay" type="number" min="1" step="1" /><span class="h">元</span></div>
     <div class="fld"><label>每月预算</label><input id="fMonth" type="number" min="1" step="1" /><span class="h">元</span></div>
@@ -636,6 +699,179 @@
       .catch(function (e) { $('maskTxt').innerHTML = '<span class="err">读取失败：' + esc(e.message) + '</span>'; setTimeout(function () { $('mask').hidden = true }, 1800) })
       .then(function () { $('btnRefresh').disabled = false })
   }
+
+  /* ── 懒人通道：提示词生成 / 复制 / 导入 ───────────────────────
+     设计意图：用户不愿意对着 24 行表格填数字，就让他把供应商的定价页
+     丢给 AI，AI 按固定格式吐 JSON，他粘回来。
+     所以提示词必须把三件事说死，否则 AI 会自由发挥：
+       1) 输出必须是**纯 JSON**（能直接 JSON.parse，不带 ``` 围栏、不带解释）
+       2) 字段名必须与插件一致（uncachedInputPerMillion 这些，不能改名）
+       3) 单位必须是元 / 百万 token（AI 常见错误是写成每千 token 或美元） */
+
+  function buildPrompt() {
+    var providers = knownProviders.length ? knownProviders : ['<你的供应商名>']
+    var models = Object.keys(cfgDraft.pricing || {}).sort()
+    var modelList = models.length ? models.join('、') : '<你的模型名>'
+
+    return [
+      '你是资费换算助手。下面我会给你一个 AI API 中转站/代理商的定价页信息。',
+      '请把它换算成我插件能直接读的 JSON。',
+      '',
+      '【我的环境】',
+      '- 我在这家供应商下的名字（provider 字段）：' + providers.join('、'),
+      '- 我实际用到的模型：' + modelList,
+      '',
+      '【输出要求：必须严格遵守，否则我无法导入】',
+      '1. 只输出一个 JSON 对象，不要任何解释文字，不要 ```json 代码围栏。',
+      '2. 金额单位必须是「元 / 每百万 token」（CNY per 1M tokens）。',
+      '   如果定价页写的是每千 token，请乘以 1000；',
+      '   如果写的是美元，请按汇率换算成人民币，并在 JSON 里额外给我一个 "note" 字段说明你用的汇率。',
+      '3. 字段名只能用这四个，不要改名、不要加新字段：',
+      '   uncachedInputPerMillion  未命中缓存的输入',
+      '   cacheReadPerMillion      命中缓存读取',
+      '   cacheWritePerMillion     缓存写入（没有就填 0）',
+      '   outputPerMillion         输出',
+      '4. 如果这家是「官方价 × 折扣」的模式，优先用倍率表示，结构如下：',
+      '   { "providerMultipliers": { "供应商名": 0.8 } }',
+      '   0.8 表示八折。这样最省事，我不用为每个模型重复填。',
+      '5. 如果这家是逐模型固定价，用这个结构：',
+      '   { "pricing": { "模型名": { "peak": {...四个字段}, "offpeak": {...四个字段} } } }',
+      '   只有一档价就写成平铺：{ "pricing": { "模型名": { ...四个字段 } } }',
+      '6. 峰谷两档如果定价页没区分，两档填一样的数字即可。',
+      '7. 换算不确定的地方，在 JSON 顶层加 "note" 字段用中文说明，我会自己核对。',
+      '',
+      '【定价页信息】',
+      '（下面粘贴网页内容 / 截图里读到的价格，或直接给我链接）',
+      '',
+    ].join('\n')
+  }
+
+  function refreshPrompt() {
+    var box = $('promptText')
+    if (box) box.value = buildPrompt()
+  }
+
+  $('btnTipsToggle').addEventListener('click', function () {
+    var body = $('tipsBody')
+    var willOpen = body.hidden
+    body.hidden = !willOpen
+    this.textContent = willOpen ? '收起' : '展开'
+    if (willOpen) refreshPrompt()
+  })
+
+  $('btnCopyPrompt').addEventListener('click', function () {
+    var text = $('promptText').value
+    var done = function (ok) {
+      $('copyMsg').textContent = ok ? '已复制，去发给 AI 吧' : '复制失败，请手动全选'
+      setTimeout(function () { $('copyMsg').textContent = '' }, 2600)
+    }
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(function () { done(true) }, function () { done(false) })
+    } else {
+      // 老浏览器 / 非安全上下文兜底：选中文本让用户自己 Ctrl+C
+      var box = $('promptText')
+      box.removeAttribute('readonly')
+      box.select()
+      var ok = false
+      try { ok = document.execCommand('copy') } catch (e) { ok = false }
+      box.setAttribute('readonly', 'readonly')
+      done(ok)
+    }
+  })
+
+  /**
+   * 导入 AI 回的 JSON。
+   *
+   * 容错设计：AI 十有八九会带 ```json 围栏、或者在 JSON 前后加一句
+   * 「这是结果：」。所以先剥围栏、再找第一个 { 到最后一个 } 之间的内容，
+   * 都失败才报错。宁可多剥几层，也不要让用户手工清理。
+   */
+  function parseLooseJson(raw) {
+    var text = String(raw || '').trim()
+    if (!text) throw new Error('内容为空')
+    // 剥 ``` 围栏
+    text = text.replace(/^```(?:json|JSON)?\s*/m, '').replace(/```\s*$/m, '').trim()
+    try { return JSON.parse(text) } catch (e) { /* 继续尝试截取 */ }
+    var first = text.indexOf('{')
+    var last = text.lastIndexOf('}')
+    if (first >= 0 && last > first) {
+      var slice = text.slice(first, last + 1)
+      try { return JSON.parse(slice) } catch (e2) { /* 落到下面 */ }
+    }
+    throw new Error('解析不出 JSON（已尝试去掉代码围栏与前后文字）')
+  }
+
+  $('btnImport').addEventListener('click', function () {
+    var msg = $('importMsg')
+    var raw = $('importText').value
+    var data
+    try {
+      data = parseLooseJson(raw)
+    } catch (e) {
+      msg.textContent = '失败：' + e.message
+      msg.style.color = 'var(--err, #dc2626)'
+      return
+    }
+
+    var applied = []
+    var skipped = []
+
+    // 1) 倍率
+    if (data && typeof data.providerMultipliers === 'object' && data.providerMultipliers !== null) {
+      Object.keys(data.providerMultipliers).forEach(function (k) {
+        var v = data.providerMultipliers[k]
+        var n = v === null ? null : Number(v)
+        if (n === null || (isFinite(n) && n >= 0)) {
+          cfgDraft.providerMultipliers[k] = n
+          applied.push('倍率 ' + k + ' = ' + (n === null ? '不计费' : n))
+        } else {
+          skipped.push(k + '（值不是有效数字）')
+        }
+      })
+    }
+
+    // 2) 价目
+    if (data && typeof data.pricing === 'object' && data.pricing !== null) {
+      Object.keys(data.pricing).forEach(function (name) {
+        var e = data.pricing[name]
+        if (!e || typeof e !== 'object') { skipped.push(name + '（结构不对）'); return }
+        var clean = function (src) {
+          var out = {}
+          ;['uncachedInputPerMillion', 'cacheReadPerMillion', 'cacheWritePerMillion', 'outputPerMillion']
+            .forEach(function (key) {
+              var n = Number(src && src[key])
+              if (isFinite(n) && n >= 0) out[key] = n
+            })
+          return out
+        }
+        var entry = {}
+        if (e.peak || e.offpeak) {
+          if (e.peak) entry.peak = clean(e.peak)
+          if (e.offpeak) entry.offpeak = clean(e.offpeak)
+        } else {
+          entry = clean(e)
+        }
+        if (!Object.keys(entry).length) { skipped.push(name + '（四个价格字段都读不出来）'); return }
+        cfgDraft.pricing[name] = entry
+        applied.push('价目 ' + name)
+      })
+    }
+
+    if (!applied.length) {
+      msg.textContent = '没读到有效内容' + (skipped.length ? '：' + skipped.slice(0, 3).join('；') : '')
+      msg.style.color = 'var(--err, #dc2626)'
+      return
+    }
+
+    renderMultipliers()
+    renderPrices()
+
+    var note = data.note ? '（AI 备注：' + String(data.note).slice(0, 80) + '）' : ''
+    msg.textContent = '已导入 ' + applied.length + ' 项' + (skipped.length ? '，跳过 ' + skipped.length + ' 项' : '') +
+      '。核对后点「保存全部」。' + note
+    msg.style.color = 'var(--brand)'
+    $('importText').value = ''
+  })
 
   $('btnRefresh').addEventListener('click', function () { load(true) })
 
