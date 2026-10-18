@@ -118,6 +118,11 @@ class Collector {
       },
       budget: payload?.budget ?? this.config.budget,
       pricing: payload?.pricing ?? this.config.pricing,
+      /* 倍率：显式传了就整表替换（界面是全量提交），没传则保持原值。
+         注意不能写成 `payload?.providerMultipliers ?? this.config.providerMultipliers`——
+         `this.config.providerMultipliers` 是规整后的对象，直接回写会把 null 值
+         与默认合并逻辑再跑一遍，导致「清空某条倍率」永远生效不了。 */
+      providerMultipliers: payload?.providerMultipliers ?? this.config.providerMultipliers,
     }
     this.config = normalizePricing(merged)
     writePricingFile(merged)
@@ -363,6 +368,12 @@ function _apply(ctx) {
         path: '/api/whale-meter/config',
         handler: async (req, res) => {
           if (req.method === 'GET') {
+            /* 除了当前配置，还把「实际出现过的 provider」一起回给界面：
+               用户不必手打 provider 名，从下拉里挑就行。
+               取最近一次快照里的 providers 列表（没有快照就用空数组）。 */
+            const seenProviders = (collector.cache?.providers ?? [])
+              .map((p) => p.provider)
+              .filter((p) => typeof p === 'string' && p !== 'unknown')
             sendJson(res, 200, {
               currency: collector.config.currency,
               budget: collector.config.budget,
@@ -374,6 +385,9 @@ function _apply(ctx) {
                 }),
               },
               pricing: collector.config.pricing,
+              providerMultipliers: collector.config.providerMultipliers,
+              /* 观测到的 provider，供界面做下拉/校验 */
+              knownProviders: seenProviders,
             })
             return
           }

@@ -24,7 +24,7 @@ import {
   startOfBeijingDay,
   startOfBeijingMonth,
 } from '../src/aggregate.js'
-import { costOf, isPeak, normalizePricing, resolvePricing } from '../src/pricing.js'
+import { costOf, isPeak, multiplierOf, normalizePricing, resolvePricing } from '../src/pricing.js'
 import { parseEventLines, scanZstdFrames, zstdSupported } from '../src/zstd-frames.js'
 
 const here = path.dirname(fileURLToPath(import.meta.url))
@@ -89,6 +89,31 @@ check('glm-5.3-flash 命中便宜档而非 glm-5.3',
   resolvePricing('glm-5.3-flash', cfg)?.['outputPerMillion'] === 2.0,
   String(resolvePricing('glm-5.3-flash', cfg)?.['outputPerMillion']))
 check('完全未知的模型返回 undefined（而非 0）', costOf('totally-made-up', oneMillion, wedPeak, cfg) === undefined)
+
+/* ── 供应商倍率 ──────────────────────────────────────────────────
+   这块是「用户自己填折扣」的核心。四条必须成立的性质：
+   不配 = 原价、配了 = 乘、配 0 能真减到 0、null 表示不计费。 */
+const cfgMult = normalizePricing({ providerMultipliers: { workbuddy: 0.8, free: null, zero: 0 } })
+check('未配置的 provider 按 1 倍（官方价）',
+  Math.abs(costOf('deepseek-flash', oneMillion, wedPeak, cfgMult, 'nobody') - 2) < 1e-9,
+  String(costOf('deepseek-flash', oneMillion, wedPeak, cfgMult, 'nobody')))
+check('0.8 倍率 → 2 元变 1.6 元',
+  Math.abs(costOf('deepseek-flash', oneMillion, wedPeak, cfgMult, 'workbuddy') - 1.6) < 1e-9,
+  String(costOf('deepseek-flash', oneMillion, wedPeak, cfgMult, 'workbuddy')))
+check('倍率为 0 → 金额为 0',
+  costOf('deepseek-flash', oneMillion, wedPeak, cfgMult, 'zero') === 0)
+check('倍率为 null → 标记不计费，金额为 0',
+  costOf('deepseek-flash', oneMillion, wedPeak, cfgMult, 'free') === 0)
+check('不传 provider 时按官方价',
+  Math.abs(costOf('deepseek-flash', oneMillion, wedPeak, cfgMult) - 2) < 1e-9)
+check('倍率不影响峰谷判定（谷时先半价再打折）',
+  Math.abs(costOf('deepseek-flash', oneMillion, wedLunch, cfgMult, 'workbuddy') - 0.8) < 1e-9,
+  String(costOf('deepseek-flash', oneMillion, wedLunch, cfgMult, 'workbuddy')))
+check('非法倍率（负数 / NaN / 字符串）被丢弃，回落 1 倍',
+  multiplierOf('bad', normalizePricing({ providerMultipliers: { bad: -1 } })) === 1
+  && multiplierOf('bad2', normalizePricing({ providerMultipliers: { bad2: 'x' } })) === 1)
+check('空倍率表不覆盖内置默认',
+  Object.keys(normalizePricing({ providerMultipliers: {} }).providerMultipliers).length === 0)
 
 // 去重：同一 turn/step 两次 usage 只算一次，且以后到的完整值为准
 const sample = {

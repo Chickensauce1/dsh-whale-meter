@@ -170,6 +170,23 @@
 
   .cfg { display: none; }
   .cfg.open { display: block; }
+  /* 配置项多了以后这一块会很长，而详情面板是固定高度的 iframe。
+     给它自己的滚动边界，避免把整页撑到必须滚很久才能碰到「保存」。 */
+  .cfg.open {
+    max-height: 70vh; overflow-y: auto; overflow-x: hidden;
+    padding-right: 6px;
+    scrollbar-width: thin;
+  }
+  .cfg.open::-webkit-scrollbar { width: 8px; }
+  .cfg.open::-webkit-scrollbar-thumb {
+    background: var(--line-2, rgba(0,0,0,.16)); border-radius: 4px;
+  }
+  /* 保存那一行吸底：滚动时始终能看到按钮，不用滑到底 */
+  .cfg .savebar {
+    position: sticky; bottom: 0; z-index: 2;
+    background: var(--bg); padding: 12px 0 4px; margin-top: 8px;
+    border-top: 1px solid var(--line-1);
+  }
   .fld { display: flex; align-items: center; gap: 12px; margin-bottom: 11px; font-size: 13.5px; }
   .fld label { min-width: 104px; color: var(--ink-2); }
   .fld input {
@@ -179,6 +196,55 @@
   }
   .fld input:focus { outline: 2px solid var(--brand); outline-offset: -1px; border-color: transparent; }
   .fld .h { color: var(--ink-3); font-size: 11px; }
+
+  /* ── 配置区：分组 / 倍率表 / 价目表 ───────────────────────── */
+  .grp { margin: 18px 0; padding-top: 14px; border-top: 1px solid var(--line-1); }
+  .grp-h { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; margin-bottom: 10px; }
+  .grp-h b { font-size: 13.5px; color: var(--ink); font-weight: 600; }
+  .grp-t { font-size: 11.5px; color: var(--ink-3); }
+
+  .mult { display: flex; flex-direction: column; gap: 6px; }
+  .mrow { display: flex; align-items: center; gap: 10px; font-size: 13px; }
+  .mrow .pn { min-width: 160px; font-weight: 550; color: var(--ink); }
+  .mrow .pv { width: 86px; text-align: right; }
+  .mrow .eff { font-size: 11px; color: var(--ink-3); min-width: 96px; }
+  .mrow .del {
+    border: 1px solid transparent; background: transparent; color: var(--ink-3);
+    cursor: pointer; font-size: 12px; padding: 2px 7px; border-radius: var(--r-sm);
+  }
+  .mrow .del:hover { background: var(--hover); color: var(--err, #dc2626); }
+  .mrow input { width: 78px; }
+
+  .price-wrap {
+    max-height: 320px; overflow: auto;
+    border: 1px solid var(--line-1); border-radius: var(--r-sm);
+  }
+  .ptable { width: 100%; border-collapse: collapse; font-size: 12px; }
+  .ptable th {
+    position: sticky; top: 0; z-index: 1;
+    background: var(--bg); font-weight: 550; color: var(--ink-3);
+    padding: 6px 5px; text-align: center; border-bottom: 1px solid var(--line-1);
+    font-size: 11px; white-space: nowrap;
+  }
+  .ptable th:first-child { text-align: left; padding-left: 10px; }
+  .ptable td { padding: 3px 4px; border-bottom: 1px solid var(--line-1); }
+  .ptable td:first-child { padding-left: 10px; color: var(--ink); font-weight: 500; }
+  .ptable td input {
+    width: 100%; min-width: 52px; padding: 3px 5px; font-size: 12px;
+    text-align: right; border: 1px solid var(--line-1); border-radius: 4px;
+    background: var(--bg); color: var(--ink); font-variant-numeric: tabular-nums;
+  }
+  .ptable td input:focus { outline: 2px solid var(--brand); outline-offset: -1px; }
+  .ptable tr:hover td { background: var(--hover); }
+  .ptable .rm { cursor: pointer; color: var(--ink-3); text-align: center; width: 28px; }
+  .ptable .rm:hover { color: var(--err, #dc2626); }
+
+  button.ghost {
+    background: transparent; border: 1px solid var(--line-3, var(--line-1));
+    color: var(--ink-2); border-radius: var(--r-sm); padding: 5px 12px;
+    font-size: 12.5px; cursor: pointer; font-family: inherit;
+  }
+  button.ghost:hover { background: var(--hover); color: var(--ink); }
 
   .mask { position: fixed; inset: 0; display: grid; place-items: center; background: var(--bg); z-index: 20; font-size: 12px; color: var(--ink-3); }
   .mask[hidden] { display: none; }
@@ -268,11 +334,67 @@
 
   <div class="sec cfg" id="cfgPanel">
     <h2>价目与预算 <span class="r">写入 ~/.dsh/whale-meter-pricing.json</span></h2>
+
     <div class="fld"><label>每日预算</label><input id="fDay" type="number" min="1" step="1" /><span class="h">元</span></div>
     <div class="fld"><label>每月预算</label><input id="fMonth" type="number" min="1" step="1" /><span class="h">元</span></div>
-    <div class="fld"><label>峰时区间</label><input id="fPeak" type="text" style="width:220px" /><span class="h">逗号分隔</span></div>
-    <div class="fld"><label>价目模型</label><span class="h" id="fModels">—</span></div>
-    <div class="fld"><label></label><button class="p" id="btnSave">保存</button><span class="h" id="fMsg"></span></div>
+    <div class="fld"><label>峰时区间</label><input id="fPeak" type="text" style="width:220px" /><span class="h">逗号分隔，如 09:00-12:00,14:00-18:00</span></div>
+
+    <!-- ── 供应商倍率 ─────────────────────────────────────────────
+         这是本页最实用的一块：同一家中转站通常「按官方价 × 折扣」收费，
+         只要给 provider 一个系数，就不必为它重复维护一整套模型价目。 -->
+    <div class="grp">
+      <div class="grp-h">
+        <b>供应商倍率</b>
+        <span class="grp-t">最终单价 = 官方价 × 倍率。留空或 1 = 按官方价；0 = 不计费</span>
+      </div>
+      <div class="mult" id="multList"></div>
+      <div class="fld" style="margin-top:8px">
+        <label style="min-width:auto">新增</label>
+        <input id="fMultName" type="text" placeholder="provider 名（如 workbuddy）" style="width:200px" />
+        <input id="fMultVal" type="number" min="0" step="0.01" value="1" style="width:80px" />
+        <button id="btnAddMult" class="ghost">加上</button>
+        <span class="h" id="multHint"></span>
+      </div>
+    </div>
+
+    <!-- ── 模型价目 ────────────────────────────────────────────── -->
+    <div class="grp">
+      <div class="grp-h">
+        <b>模型价目</b>
+        <span class="grp-t">单位：元 / 百万 token。分峰谷两档，留空表示该档不适用</span>
+      </div>
+      <div class="fld" style="margin-bottom:8px">
+        <input id="fModelSearch" type="text" placeholder="筛选模型（如 deepseek / glm）" style="width:100%" />
+      </div>
+      <div class="price-wrap">
+        <table class="ptable">
+          <thead>
+            <tr>
+              <th rowspan="2">模型</th>
+              <th colspan="3">峰时</th>
+              <th colspan="3">谷时</th>
+              <th rowspan="2"></th>
+            </tr>
+            <tr>
+              <th>输入</th><th>缓存读</th><th>输出</th>
+              <th>输入</th><th>缓存读</th><th>输出</th>
+            </tr>
+          </thead>
+          <tbody id="priceRows"></tbody>
+        </table>
+      </div>
+      <div class="fld" style="margin-top:8px">
+        <input id="fNewModel" type="text" placeholder="新模型名" style="width:180px" />
+        <button id="btnAddModel" class="ghost">加一行</button>
+        <span class="h">查不到的模型会列进「未定价」，金额显示 —</span>
+      </div>
+    </div>
+
+    <div class="fld savebar">
+      <button class="p" id="btnSave">保存全部</button>
+      <button id="btnReset" class="ghost">恢复默认价目</button>
+      <span class="h" id="fMsg"></span>
+    </div>
   </div>
 
   <div class="foot">
@@ -516,30 +638,258 @@
   }
 
   $('btnRefresh').addEventListener('click', function () { load(true) })
-  $('btnCfg').addEventListener('click', function () {
-    var p = $('cfgPanel'); var on = p.classList.toggle('open')
-    if (!on) return
+
+  /* ── 配置区状态 ─────────────────────────────────────────────── */
+  /* 编辑中的配置副本。界面一改动就写这里，保存时整份 POST。
+     用副本而不是每格直接 POST：用户一次要改十几个数字，
+     每格一次请求既慢又会互相覆盖。 */
+  var cfgDraft = { pricing: {}, providerMultipliers: {} }
+  var knownProviders = []
+
+  function pctText(v) {
+    if (v === null) return '不计费'
+    var n = Number(v)
+    if (!isFinite(n)) return '—'
+    if (n === 1) return '官方价'
+    if (n === 0) return '减免 100%'
+    return (n * 100).toFixed(n < 0.1 ? 1 : 0) + '% 官方价'
+  }
+
+  function renderMultipliers() {
+    var host = $('multList')
+    host.innerHTML = ''
+    var table = cfgDraft.providerMultipliers || {}
+    var keys = Object.keys(table).sort()
+    /* 观测到但还没配的 provider 放在后面，提示用户「这个也可以配」 */
+    var unset = knownProviders.filter(function (p) { return !Object.prototype.hasOwnProperty.call(table, p) })
+
+    if (!keys.length && !unset.length) {
+      host.innerHTML = '<div class="mrow" style="color:var(--ink-3)">还没有供应商。刷新一次数据后会自动出现可配项。</div>'
+      return
+    }
+
+    keys.forEach(function (name) {
+      var row = document.createElement('div')
+      row.className = 'mrow'
+      var v = table[name]
+      row.innerHTML =
+        '<span class="pn">' + esc(name) + '</span>' +
+        '<input type="number" min="0" step="0.01" value="' + (v === null ? '' : v) + '" />' +
+        '<span class="eff">' + pctText(v) + '</span>' +
+        '<button class="del" title="移除这一条（回到官方价）">移除</button>'
+      var input = row.querySelector('input')
+      var eff = row.querySelector('.eff')
+      input.addEventListener('input', function () {
+        var raw = input.value.trim()
+        if (raw === '') { cfgDraft.providerMultipliers[name] = 1 }
+        else {
+          var n = Number(raw)
+          cfgDraft.providerMultipliers[name] = isFinite(n) && n >= 0 ? n : 1
+        }
+        eff.textContent = pctText(cfgDraft.providerMultipliers[name])
+      })
+      row.querySelector('.del').addEventListener('click', function () {
+        delete cfgDraft.providerMultipliers[name]
+        renderMultipliers()
+      })
+      host.appendChild(row)
+    })
+
+    unset.forEach(function (name) {
+      var row = document.createElement('div')
+      row.className = 'mrow'
+      row.style.opacity = '.62'
+      row.innerHTML =
+        '<span class="pn">' + esc(name) + '</span>' +
+        '<span class="eff">未配置 · 按官方价</span>' +
+        '<button class="ghost" style="padding:3px 10px;font-size:11.5px">配置</button>'
+      row.querySelector('button').addEventListener('click', function () {
+        cfgDraft.providerMultipliers[name] = 1
+        renderMultipliers()
+      })
+      host.appendChild(row)
+    })
+
+    $('multHint').textContent = keys.length
+      ? keys.length + ' 条已配置'
+      : '点「配置」为本机出现过的供应商设折扣'
+  }
+
+  function numOrNull(v) {
+    var raw = String(v == null ? '' : v).trim()
+    if (raw === '') return null
+    var n = Number(raw)
+    return isFinite(n) && n >= 0 ? n : null
+  }
+
+  function renderPrices() {
+    var host = $('priceRows')
+    host.innerHTML = ''
+    var q = ($('fModelSearch').value || '').trim().toLowerCase()
+    var names = Object.keys(cfgDraft.pricing || {}).sort()
+    if (q) names = names.filter(function (n) { return n.toLowerCase().indexOf(q) >= 0 })
+
+    names.forEach(function (name) {
+      var entry = cfgDraft.pricing[name] || {}
+      /* 分档模型 vs 平铺模型：分档有 peak/offpeak，平铺只有顶层四个字��。
+         界面上统一显示成「峰/谷」两行，平铺模型把同样的值填进两列，
+         保存时若两列完全一致就写回平铺格式（不改变原有语义）。 */
+      var tiered = !!(entry.peak || entry.offpeak)
+      var pk = tiered ? (entry.peak || {}) : entry
+      var op = tiered ? (entry.offpeak || {}) : entry
+
+      var tr = document.createElement('tr')
+      tr.setAttribute('data-model', name)
+      var cells = [
+        ['peak', 'uncachedInputPerMillion', pk.uncachedInputPerMillion],
+        ['peak', 'cacheReadPerMillion', pk.cacheReadPerMillion],
+        ['peak', 'outputPerMillion', pk.outputPerMillion],
+        ['offpeak', 'uncachedInputPerMillion', op.uncachedInputPerMillion],
+        ['offpeak', 'cacheReadPerMillion', op.cacheReadPerMillion],
+        ['offpeak', 'outputPerMillion', op.outputPerMillion],
+      ]
+      var html = '<td>' + esc(name) + '</td>'
+      cells.forEach(function (c) {
+        html += '<td><input type="number" min="0" step="0.01" data-tier="' + c[0] + '" data-key="' + c[1] +
+          '" value="' + (c[2] == null ? '' : c[2]) + '" /></td>'
+      })
+      html += '<td class="rm" title="删除这个模型">✕</td>'
+      tr.innerHTML = html
+      tr.querySelector('.rm').addEventListener('click', function () {
+        delete cfgDraft.pricing[name]
+        renderPrices()
+      })
+      host.appendChild(tr)
+    })
+
+    if (!names.length) {
+      host.innerHTML = '<tr><td colspan="8" style="text-align:center;color:var(--ink-3);padding:14px">' +
+        (q ? '没有匹配的模型' : '价目表为空') + '</td></tr>'
+    }
+  }
+
+  /** 把表格里的输入收集回 cfgDraft.pricing。 */
+  function collectPrices() {
+    var rows = $('priceRows').querySelectorAll('tr[data-model]')
+    var out = {}
+    Array.prototype.forEach.call(rows, function (tr) {
+      var name = tr.getAttribute('data-model')
+      var g = function (tier, key) {
+        var el = tr.querySelector('input[data-tier="' + tier + '"][data-key="' + key + '"]')
+        return el ? numOrNull(el.value) : null
+      }
+      var pk = {
+        uncachedInputPerMillion: g('peak', 'uncachedInputPerMillion'),
+        cacheReadPerMillion: g('peak', 'cacheReadPerMillion'),
+        outputPerMillion: g('peak', 'outputPerMillion'),
+      }
+      var op = {
+        uncachedInputPerMillion: g('offpeak', 'uncachedInputPerMillion'),
+        cacheReadPerMillion: g('offpeak', 'cacheReadPerMillion'),
+        outputPerMillion: g('offpeak', 'outputPerMillion'),
+      }
+      var hasPk = Object.keys(pk).some(function (k) { return pk[k] !== null })
+      var hasOp = Object.keys(op).some(function (k) { return op[k] !== null })
+
+      var clean = function (o) {
+        var r = {}
+        for (var k in o) if (o[k] !== null) r[k] = o[k]
+        /* cacheWritePerMillion 界面上没暴露（绝大多数模型为 0），
+           但已有值要原样保留，否则保存一次就被抹掉。 */
+        if (cfgDraft.pricing[name] && cfgDraft.pricing[name].cacheWritePerMillion != null) {
+          r.cacheWritePerMillion = cfgDraft.pricing[name].cacheWritePerMillion
+        }
+        return r
+      }
+
+      var cpk = clean(pk), cop = clean(op)
+      /* 两档数字完全一致 → 写回平铺格式（保持原文件的语义，不无端变成分档） */
+      var same = JSON.stringify(cpk) === JSON.stringify(cop)
+      if (hasPk && hasOp && same) out[name] = cpk
+      else {
+        var e = {}
+        if (hasPk) e.peak = cpk
+        if (hasOp) e.offpeak = cop
+        /* peak/offpeak 都不完整时保留原值，避免一次误操作把整条抹掉 */
+        if (!hasPk && !hasOp && cfgDraft.pricing[name]) e = cfgDraft.pricing[name]
+        out[name] = e
+      }
+    })
+    cfgDraft.pricing = out
+  }
+
+  function openCfg() {
     fetch('/api/whale-meter/config').then(function (r) { return r.json() }).then(function (c) {
+      cfgDraft.pricing = c.pricing || {}
+      cfgDraft.providerMultipliers = c.providerMultipliers || {}
+      knownProviders = c.knownProviders || []
       $('fDay').value = c.budget.day
       $('fMonth').value = c.budget.month
       $('fPeak').value = (c.peakSchedule.intervals || []).map(function (i) { return i.start + '-' + i.end }).join(',')
-      $('fModels').textContent = Object.keys(c.pricing || {}).length + ' 个模型有价目'
+      renderMultipliers()
+      renderPrices()
+    }).catch(function (e) {
+      $('fMsg').textContent = '读取配置失败：' + e.message
     })
+  }
+
+  $('btnCfg').addEventListener('click', function () {
+    var p = $('cfgPanel'); var on = p.classList.toggle('open')
+    if (!on) return
+    openCfg()
     p.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
   })
+
+  $('fModelSearch').addEventListener('input', function () { collectPrices(); renderPrices() })
+
+  $('btnAddMult').addEventListener('click', function () {
+    var name = ($('fMultName').value || '').trim()
+    var val = numOrNull($('fMultVal').value)
+    if (!name) { $('fMsg').textContent = '先填 provider 名'; return }
+    cfgDraft.providerMultipliers[name] = val === null ? 1 : val
+    $('fMultName').value = ''
+    $('fMultVal').value = '1'
+    renderMultipliers()
+  })
+
+  $('btnAddModel').addEventListener('click', function () {
+    var name = ($('fNewModel').value || '').trim()
+    if (!name) { $('fMsg').textContent = '先填模型名'; return }
+    collectPrices()
+    if (!cfgDraft.pricing[name]) cfgDraft.pricing[name] = {}
+    $('fNewModel').value = ''
+    $('fModelSearch').value = ''
+    renderPrices()
+  })
+
+  $('btnReset').addEventListener('click', function () {
+    if (!confirm('恢复成插件内置的默认价目？自定义的倍率与改动会一起清掉。')) return
+    fetch('/api/whale-meter/config', {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ providerMultipliers: {}, pricing: null }),
+    }).then(function (r) { return r.json() }).then(function (res) {
+      $('fMsg').textContent = res.ok ? '已恢复默认' : ('失败：' + (res.error || ''))
+      if (res.ok) { openCfg(); load(true) }
+      setTimeout(function () { $('fMsg').textContent = '' }, 2400)
+    }).catch(function (e) { $('fMsg').textContent = '失败：' + e.message })
+  })
+
   $('btnSave').addEventListener('click', function () {
     var iv = $('fPeak').value.split(',').map(function (x) { return x.trim() }).filter(Boolean).map(function (x) {
       var m = x.split('-'); return { start: (m[0] || '').trim(), end: (m[1] || '').trim() }
     }).filter(function (i) { return /^\d{1,2}:\d{2}$/.test(i.start) && /^\d{1,2}:\d{2}$/.test(i.end) })
+    collectPrices()
     $('fMsg').textContent = '保存中…'
     fetch('/api/whale-meter/config', {
       method: 'POST', headers: { 'content-type': 'application/json' },
       body: JSON.stringify({
         budget: { day: Number($('fDay').value) || 30, month: Number($('fMonth').value) || 70 },
         peakSchedule: { weekendOffpeak: true, intervals: iv.length ? iv : [{ start: '09:00', end: '12:00' }, { start: '14:00', end: '18:00' }] },
+        pricing: cfgDraft.pricing,
+        providerMultipliers: cfgDraft.providerMultipliers,
       }),
     }).then(function (r) { return r.json() }).then(function (res) {
-      $('fMsg').textContent = res.ok ? '已保存' : ('失败：' + (res.error || ''))
+      $('fMsg').textContent = res.ok ? '已保存，重新计算中…' : ('失败：' + (res.error || ''))
       if (res.ok) load(true)
       setTimeout(function () { $('fMsg').textContent = '' }, 2400)
     }).catch(function (e) { $('fMsg').textContent = '失败：' + e.message })

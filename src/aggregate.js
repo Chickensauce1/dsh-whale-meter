@@ -273,7 +273,7 @@ function addUsage(totals, record, config) {
     outputTokens: record.outputTokens,
     cacheReadTokens: record.cacheReadTokens,
     cacheWriteTokens: record.cacheWriteTokens,
-  }, record.time, config)
+  }, record.time, config, record.provider)
   if (cost === undefined) {
     totals.unpriced += 1
     totals.unpricedTokens += tokens
@@ -426,7 +426,7 @@ export function buildSnapshot({ usage, requests, titles, config, now, health }) 
 
   for (const record of usage) {
     const tokens = record.inputTokens + record.outputTokens + record.cacheReadTokens + record.cacheWriteTokens
-    const cost = costOf(record.model, record, record.time, config)
+    const cost = costOf(record.model, record, record.time, config, record.provider)
 
     if (record.time >= hourStart) {
       const idx = Math.min(23, Math.max(0, Math.floor((record.time - hourStart) / HOUR)))
@@ -504,7 +504,7 @@ export function buildSnapshot({ usage, requests, titles, config, now, health }) 
   {
     const acc = new Map()
     for (const record of usage) {
-      if (costOf(record.model, record, record.time, config) !== undefined) continue
+      if (costOf(record.model, record, record.time, config, record.provider) !== undefined) continue
       const key = record.model || 'unknown'
       const cur = acc.get(key) ?? { model: key, provider: record.provider, records: 0, tokens: 0 }
       cur.records += 1

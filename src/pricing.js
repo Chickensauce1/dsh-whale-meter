@@ -26,6 +26,13 @@ export const DEFAULT_PRICING = {
     ],
   },
   budget: { day: 30, month: 70 },
+  /**
+   * 供应商倍率默认值：空表 = 全部按官方价。
+   *
+   * 特意留空而不是预填猜测值：我不知道任何中转站的真实折扣，
+   * 预填等于把我的猜测当成用户的事实。留空 + 界面可改才是诚实的做法。
+   */
+  providerMultipliers: {},
   pricing: {
     /* ── DeepSeek 官方峰谷价 ─────────────────────────────────── */
     'deepseek-flash': {
@@ -155,12 +162,18 @@ export function normalizePricing(raw) {
   const budgetSrc = source.budget && typeof source.budget === 'object' ? source.budget : base.budget
   const day = typeof budgetSrc.day === 'number' && budgetSrc.day > 0 ? budgetSrc.day : base.budget.day
   const month = typeof budgetSrc.month === 'number' && budgetSrc.month > 0 ? budgetSrc.month : base.budget.month
+  /* 倍率：内置默认 → 用户配置覆盖。用户的空对象不会把默认抹掉（只在有键时合并）。 */
+  const providerMultipliers = {
+    ...normalizeMultipliers(base.providerMultipliers),
+    ...normalizeMultipliers(source.providerMultipliers),
+  }
   return {
     currency: typeof source.currency === 'string' && source.currency ? source.currency : base.currency,
     weekendOffpeak: schedule.weekendOffpeak !== false,
     intervals,
     budget: { day, month },
     pricing,
+    providerMultipliers,
   }
 }
 
@@ -195,6 +208,57 @@ export function resolvePricing(model, config) {
 }
 
 /**
+ * 供应商倍率。
+ *
+ * 为什么需要它：DSH 日志里的 provider 是**用户自己给网关起的别名**
+ * （workbuddy / flash / shuosheng …），不是厂商。同一家中转站常常
+ * 「按官方价 × 折扣」收费，而官方表里没法表达这个折扣。
+ *
+ * 有了倍率就不必为每个 provider 重复维护一整套 24 条价目：
+ * 只需给该 provider 一个系数，最终单价 = 官方价 × 系数。
+ *
+ * 解析顺序（后面的覆盖前面的）：
+ *   DEFAULT_PRICING.providerMultipliers → 用户 json 里的 providerMultipliers
+ *
+ * 特殊值：
+ *   1    = 按官方价（默认）
+ *   0.8  = 打八折
+ *   null = 该 provider 不计费（例如免费额度、内部报销）
+ */
+/**
+ * 规整 provider 倍率表。
+ * 只接受有限正数与 null；其它一律丢弃（宁可回落默认，也不要 NaN 污染全局）。
+ * @param {Record<string, unknown>} raw
+ * @returns {Record<string, number|null>}
+ */
+export function normalizeMultipliers(raw) {
+  const out = {}
+  if (!raw || typeof raw !== 'object') return out
+  for (const [provider, value] of Object.entries(raw)) {
+    if (typeof provider !== 'string' || !provider) continue
+    if (value === null) { out[provider] = null; continue }
+    if (typeof value === 'number' && Number.isFinite(value) && value >= 0) {
+      out[provider] = value
+    }
+  }
+  return out
+}
+
+/**
+ * 取某个 provider 的倍率。未配置时为 1（按官方价），显式 null 表示不计费。
+ * @param {string} provider
+ * @param {ReturnType<typeof normalizePricing>} config
+ * @returns {number|null}
+ */
+export function multiplierOf(provider, config) {
+  if (!provider || typeof provider !== 'string') return 1
+  const table = config?.providerMultipliers
+  if (!table || typeof table !== 'object') return 1
+  if (!Object.prototype.hasOwnProperty.call(table, provider)) return 1
+  return table[provider]
+}
+
+/**
  * 取一个价格字段在该时刻生效的值。
  * 分档模型按峰谷取；只有一档时另一档兜底；平铺模型直接取顶层字段。
  */
@@ -210,18 +274,31 @@ export function priceAt(model, time, key, config) {
 
 /**
  * 单条 usage 的费用。
- * @returns {number|undefined} 该模型无任何价目时返回 undefined（区别于「免费」的 0）。
+ *
+ * 计算顺序：先按模型查单价 → 算出官方价 → 再乘该 provider 的倍率。
+ * 倍率只在最后乘一次，所以「峰谷折扣」与「供应商折扣」互不干扰，
+ * 不会出现折扣叠加错位。
+ *
+ * @param {string} model
+ * @param {{inputTokens?:number,outputTokens?:number,cacheReadTokens?:number,cacheWriteTokens?:number}} usage
+ * @param {number} time
+ * @param {ReturnType<typeof normalizePricing>} config
+ * @param {string} [provider] 用于套倍率；不传则按 1 倍
+ * @returns {number|undefined} 该模型无任何价目时返回 undefined（区别于「免费」的 0）
  */
-export function costOf(model, usage, time, config) {
+export function costOf(model, usage, time, config, provider) {
   if (resolvePricing(model, config) === undefined) return undefined
+  const mult = multiplierOf(provider, config)
+  if (mult === null) return 0            // 显式标记为不计费
   const uncached = usage.inputTokens ?? 0
   const cacheRead = usage.cacheReadTokens ?? 0
   const cacheWrite = usage.cacheWriteTokens ?? 0
   const output = usage.outputTokens ?? 0
-  return (
+  const base = (
     uncached * (priceAt(model, time, 'uncachedInputPerMillion', config) ?? 0)
     + cacheRead * (priceAt(model, time, 'cacheReadPerMillion', config) ?? 0)
     + cacheWrite * (priceAt(model, time, 'cacheWritePerMillion', config) ?? 0)
     + output * (priceAt(model, time, 'outputPerMillion', config) ?? 0)
   ) / 1_000_000
+  return base * mult
 }
