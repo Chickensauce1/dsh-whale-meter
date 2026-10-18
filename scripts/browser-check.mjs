@@ -208,6 +208,7 @@ async function run() {
     ws.onerror = reject
   })
 
+
   ws.onmessage = (ev) => {
     const msg = JSON.parse(ev.data)
     if (msg.id && pending.has(msg.id)) { pending.get(msg.id)(msg.result); pending.delete(msg.id); return }
@@ -276,6 +277,13 @@ async function run() {
   await new Promise((r) => setTimeout(r, 400))
   await shot('panel-charts.png')
 
+  /* ── 浮窗立绘开关的交互验证 ───────────────────────────────────
+     必须在关掉 ws / 杀浏览器之前跑：这段要真的点 DOM。
+     判定函数由外面传进来（check），避免在模块顶层重复定义。 */
+  /* 浮窗交互（飘字位置 / 轮播开关）由 scripts/widget-dom-check.mjs 覆盖：
+     那需要 DSH 宿主的 slots 与 React，面板页里没有。
+     在这里测只会得到「一个元素都找不到」的假失败。 */
+
   ws.close()
   child.kill()
   return info
@@ -292,10 +300,21 @@ server.close()
 
 /* ── 判定 ────────────────────────────────────────────────────────── */
 
+
+
+/**
+ * 浮窗立绘开关的交互验证。
+ *
+ * 为什么单独成函数：这段代码要跑在 run() 内部（浏览器还活着的时候），
+ * 但它需要用 check() 做断言，而 check() 定义在文件后半部分。
+ * 所以把 check 以参数传进来 —— 直接引用会撞 TDZ。
+ */
 let failures = 0
 const ok = (l, x) => console.log(`  ✓ ${l}${x ? ` — ${x}` : ''}`)
 const bad = (l, x) => { failures += 1; console.error(`  ✗ ${l}${x ? ` — ${x}` : ''}`) }
 const check = (l, c, x) => (c ? ok(l, x) : bad(l, x))
+
+
 
 console.log('\n[browser-check]')
 if (error) { bad('页面运行', error.message) } else {

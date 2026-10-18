@@ -20,6 +20,9 @@
         var POS_KEY = 'dsh-whale-meter:pos'
         var OPEN_KEY = 'dsh-whale-meter:open'
         var TAP_KEY = 'dsh-whale-meter:taps'
+        /* 轮播状态：playing = 是否自动换图；locked = 暂停时冻住的那张图的索引 */
+        var ROAM_KEY = 'dsh-whale-meter:roam'
+        var LOCK_KEY = 'dsh-whale-meter:lock'
         var POLL_MS = 60000
 
         /* DeepSeek 品牌蓝阶（取自 DSH 主题包 --dsw-static-deepseek-*） */
@@ -161,19 +164,25 @@
           '@keyframes wm-spark{0%{transform:translate(0,0) scale(.3);opacity:1}',
           '100%{transform:translate(var(--dx),var(--dy)) scale(0);opacity:0}}',
 
-          /* 飘字：必须横排。
-             坑：父容器只有 58/84px 宽，绝对定位元素不设 width 时按 shrink-to-fit 算，
+          /* 飘字：必须横排，且要出现在立绘**上方**。
+             坑 1（横排）：父容器只有 58/84px 宽，绝对定位元素不设 width 时按 shrink-to-fit 算，
              available width = 容器宽 − left 偏移 ≈ 29px，会被压成竖条。
-             所以用 nowrap + width:max-content 让宽度由内容撑开、溢出容器。 */
-          '.wm-av .pops{position:absolute;left:50%;bottom:0;',
-          'transform:translateX(-50%);',
+             所以用 nowrap + width:max-content 让宽度由内容撑开、溢出容器。
+             坑 2（位置）：position:absolute 的 top 指的是「元素顶边」，
+             设成 top:-2px 时元素是从鱼头顶往下排的，文字会压在鱼身上。
+             必须再用 translateY(-100%) 把自己整体挪到顶边之上，
+             这样元素**底边**贴在鱼头顶，文字完整落在鱼头上方。 */
+          '.wm-av .pops{position:absolute;left:50%;top:-6px;',
+          'transform:translate(-50%,-100%);',
           'white-space:nowrap;width:max-content;max-width:none;',
           'font-size:11px;font-weight:700;color:var(--wm-accent);pointer-events:none;',
           'text-shadow:0 1px 3px rgba(255,255,255,.95),0 0 6px rgba(255,255,255,.85);',
           'animation:wm-floatup 1.5s ease-out forwards;}',
-          '@keyframes wm-floatup{0%{opacity:0;transform:translate(-50%,5px) scale(.8)}',
-          '16%{opacity:1;transform:translate(-50%,0) scale(1)}',
-          '100%{opacity:0;transform:translate(-50%,-30px) scale(1)}}',
+          /* 起点就是「贴顶边」的位置，再向上飘一点并淡出 */
+          '@keyframes wm-floatup{0%{opacity:0;transform:translate(-50%,-100%) scale(.8)}',
+          '18%{opacity:1;transform:translate(-50%,calc(-100% - 6px)) scale(1)}',
+          '72%{opacity:1;transform:translate(-50%,calc(-100% - 16px)) scale(1)}',
+          '100%{opacity:0;transform:translate(-50%,calc(-100% - 28px)) scale(1)}}',
 
           /* 实时进食脉冲：发现请求数上涨时，鱼身一缩一张 + 冒气泡 */
           '.wm-av.feeding img{animation:wm-feed .9s cubic-bezier(.34,1.4,.64,1);}',
@@ -199,6 +208,31 @@
           '14%{opacity:1;transform:translate(-50%,-100%) scale(1)}',
           '78%{opacity:1;transform:translate(-50%,-100%) scale(1)}',
           '100%{opacity:0;transform:translate(-50%,-160%) scale(.95)}}',
+
+          /* ── 轮播开关 ───────────────────────────────────────────
+             挂在立绘右上角的小圆钮。四个必须注意的点：
+             1) 不能用 React 合成事件：浮层已 createPortal 到 body，
+                合成事件委托挂在 #root 上收不到。用 data-wm-act + holder
+                上的原生委托（见 Widget 的事件分发）。
+             2) 必须 pointer-events:auto：父级 .wm-av.over 是 none。
+             3) 必须 data-wm-nodrag：否则点它会被 startDrag 当成拖拽起点，
+                松手还可能误判成撸鱼。
+             4) 常态半隐形，hover 才浮现——不抢立绘的视觉重心。 */
+          '.wm-roam{position:absolute;right:-5px;top:-3px;z-index:3;',
+          'width:18px;height:18px;border-radius:50%;display:flex;align-items:center;',
+          'justify-content:center;padding:0;cursor:pointer;pointer-events:auto;',
+          'border:1px solid var(--wm-line-strong);background:var(--wm-surface);',
+          'box-shadow:0 1px 3px rgba(86,134,254,.22);',
+          'font-size:9px;line-height:1;color:var(--wm-accent);font-weight:700;',
+          /* 播放中给 0.45 的底噪可见度：完全透明会让用户以为没有这个功能。
+             悬停或暂停时升到 1。 */
+          'opacity:.45;transition:opacity .16s ease,background .13s ease,transform .13s ease;}',
+          '.wm-pill:hover .wm-roam,.wm-card:hover .wm-roam,.wm-roam:focus-visible{opacity:1;}',
+          '.wm-roam:hover{background:var(--wm-accent-tint);transform:scale(1.12);}',
+          '.wm-roam.paused{opacity:1;color:#fff;border-color:transparent;',
+          'background:linear-gradient(135deg,' + DS[450] + ',' + DS[300] + ');}',
+          /* 触屏没有 hover，直接常显 */
+          '@media (hover:none){.wm-roam{opacity:.85;}}',
 
           '@media (prefers-reduced-motion: reduce){',
           '.wm-av.breathe img,.wm-pill:hover .wm-av img,.wm-av img.pop,',
@@ -369,9 +403,9 @@
 
         var PALETTE = [DS[500], DS[400], '#8b76f6', '#e69320', '#e0574a', '#39a8d8', DS[600]]
 
-        /* 立绘池：11 张本仓库自绘的原创 SVG（scripts/gen-art.mjs 生成，MIT）。
-           刷新时轮换播放。早期版本用的是社区二创 webp，版权归原作者，
-           上架分发前已整体替换为可随包分发的原创图。 */
+        /* 立绘池：11 张鲸鱼娘立绘（webp，取自开源表情包仓库与社区整理站，
+           版权归画师本人，不在本项目 MIT 覆盖范围内，详见 assets/CREDITS.md）。
+           轮播由「刷新轮次」驱动：每次加载到新快照就换下一张。 */
         var ART_ALL = [
           'whale-stand', 'whale-ciallo', 'whale-praise', 'whale-bighead',
           'whale-thinking', 'whale-confused', 'whale-coding', 'whale-goodmodel',
@@ -379,14 +413,31 @@
         ]
         /* 预算压力大时优先用「着急系」 */
         var ART_URGENT = ['whale-scold', 'whale-angry', 'whale-cdrive', 'whale-confused']
-        function pickArt(urgent, round) {
-          var n = Math.abs(round | 0)
+
+        /**
+         * 挑一张立绘。
+         *
+         * @param urgent 预算压力大
+         * @param round  轮播计数（每次数据刷新 +1）
+         * @param lock   暂停时冻住的索引；null = 正在轮播
+         *
+         * 暂停语义：不是「停止轮播、下次刷新再跳」——那样用户按了暂停，
+         * 一刷新图又变了，等于没停。所以暂停时直接忽略 round，只认 lock。
+         * 这样既能停住，也能点「下一张」在暂停状态下逐张翻（lock 会被改写）。
+         */
+        function pickArt(urgent, round, lock) {
+          var n = lock !== null && lock !== undefined ? Math.abs(lock | 0) : Math.abs(round | 0)
           if (urgent && n % 3 === 2) return ART_URGENT[n % ART_URGENT.length]
           return ART_ALL[n % ART_ALL.length]
         }
 
-        /* 撸鱼反馈：前 20 次温和递进，之后随机胡说八道 */
-        var TAP_LINES = ['呼噜~', '好舒服', '再摸摸', '咕噜咕噜', '再摸一下嘛', '头发要乱了', '唔…痒', '被撸秃了']
+        /** 按图名反查索引，用于「暂停时看到的是哪张」。 */
+        function artIndex(name) {
+          var i = ART_ALL.indexOf(name)
+          return i < 0 ? 0 : i
+        }
+
+        /* 撸鱼反馈：前 20 次温和递进，之后随机胡说八道 */        var TAP_LINES = ['呼噜~', '好舒服', '再摸摸', '咕噜咕噜', '再摸一下嘛', '头发要乱了', '唔…痒', '被撸秃了']
         var TAP_ABSURD = [
           '已思考（用时 1 秒）我操，我不思考了',
           '我这鱼生很迷茫',
@@ -548,6 +599,20 @@
             props.floatText ? h('span', { className: 'pops', key: 'p' + bump }, props.floatText) : null,
             props.achievement
               ? h('span', { className: 'wm-ach', key: 'a' + props.achievement }, props.achievement)
+              : null,
+            /* 轮播开关：暂停时显示 ▶（点一下继续），播放时显示 ❚❚（点一下停住）。
+               只在大尺寸（卡片/面板）出现，胶囊上不显示——58px 里塞不下且没必要。
+               data-wm-nodrag 让它不触发拖拽判定，data-wm-act 交给原生事件委托。 */
+            props.roamToggle
+              ? h('span', {
+                className: 'wm-roam' + (props.paused ? ' paused' : ''),
+                'data-wm-act': 'roam',
+                'data-wm-nodrag': '',
+                role: 'button',
+                tabIndex: 0,
+                'aria-label': props.paused ? '继续播放立绘' : '暂停播放立绘',
+                title: props.paused ? '继续播放（停在当前这张）' : '暂停在这个立绘',
+              }, props.paused ? '▶' : '❚❚')
               : null
           )
         }
@@ -623,6 +688,23 @@
           var roundPair = useState(0)
           var round = roundPair[0], setRound = roundPair[1]
 
+          /* 轮播：playing 默认 true；lock 是暂停时冻住的索引。
+             两者都持久化——用户按下暂停后重开 DSH 仍然是那张，
+             不然「停在用户想要的那个上面」就只在本次会话有效。 */
+          var roamPair = useState(function () {
+            try { return localStorage.getItem(ROAM_KEY) !== '0' } catch { return true }
+          })
+          var playing = roamPair[0], setPlaying = roamPair[1]
+          var lockPair = useState(function () {
+            try {
+              var raw = localStorage.getItem(LOCK_KEY)
+              if (raw === null) return null
+              var n = parseInt(raw, 10)
+              return Number.isFinite(n) ? n : null
+            } catch { return null }
+          })
+          var lock = lockPair[0], setLock = lockPair[1]
+
           /* 撸鱼累计次数：持久化，跨会话累积 */
           var tapPair = useState(function () {
             try { return parseInt(localStorage.getItem(TAP_KEY), 10) || 0 } catch { return 0 }
@@ -666,6 +748,44 @@
               return next
             })
           }, [])
+
+          /**
+           * 轮播开关。
+           *
+           * 暂停时把**当前正在显示的那张**索引写进 lock —— 这一句是关键：
+           * 直接 `setPlaying(false)` 而不记 lock，重渲染时 pickArt 会退回
+           * round 算出的那张，用户按暂停反而看到图跳了一下，等于没停住。
+           * 所以先按当前状态反解出 art 的索引，再锁死它。
+           *
+           * 继续播放时不立刻跳图（lock 清空后 round 才继续驱动），
+           * 视觉上是「从这张接着往下轮」。
+           */
+          var toggleRoam = useCallback(function () {
+            setPlaying(function (wasPlaying) {
+              var next = !wasPlaying
+              try { localStorage.setItem(ROAM_KEY, next ? '1' : '0') } catch { /* 忽略 */ }
+
+              if (next) {
+                /* 继续播放：不能只清 lock 就完事。
+                   round 在暂停期间一直被数据刷新 +1，直接放行会「跳」到
+                   另一张，看起来很突兀。这里把 round 重置成刚锁定的那张的
+                   索引，视觉上是从当前这张接着往下轮。 */
+                var from = lock !== null && lock !== undefined ? lock : artIndex(pickArt(pct >= 0.6, round, null))
+                setRound(from)
+                setLock(null)
+                try {
+                  localStorage.removeItem(LOCK_KEY)
+                } catch { /* 忽略 */ }
+              } else {
+                // 反解当前显示的是哪张：与渲染处同样的算法
+                var curArt = pickArt(pct >= 0.6, round, lock)
+                var idx = artIndex(curArt)
+                setLock(idx)
+                try { localStorage.setItem(LOCK_KEY, String(idx)) } catch { /* 忽略 */ }
+              }
+              return next
+            })
+          }, [pct, round, lock])
 
           /**
            * 拖拽 + 点击（挂在胶囊与整张卡片上，所以展开后下半部分同样可拖）。
@@ -716,6 +836,7 @@
           apiRef.current.startDrag = startDrag
           apiRef.current.toggle = toggle
           apiRef.current.setPanel = setPanel
+          apiRef.current.toggleRoam = toggleRoam
           /* pointerup 兜底需要知道刚才有没有拖动过，避免拖拽结束误触发 toggle */
           apiRef.current.moved = function () { return movedRef.current }
 
@@ -743,6 +864,11 @@
                 apiRef.current.setPanel(true)
               } else if (act === 'close-panel') {
                 apiRef.current.setPanel(false)
+              } else if (act === 'roam') {
+                /* 轮播开关。注意它挂在 .wm-card 内部，而 .wm-card 自己是
+                   data-wm-act='card'（拖拽起点）——所以 pointerdown 里必须先
+                   排除它，否则按下开关会被当成开始拖卡片。见 onDown。 */
+                apiRef.current.toggleRoam()
               } else if (act === 'overlay') {
                 /* 点遮罩空白处才关；点在面板内容上不关。
                    判据：命中的 [data-wm-act] 元素就是事件目标本身（而非它的子元素）。 */
@@ -765,13 +891,16 @@
             }
             /* pointerup 只在「没移动过」时兜底，避免拖拽结束时误触发。
                注意 pill 的 pointerup 不在这里 toggle —— 撸鱼由 startDrag 负责，
-               这里再 toggle 会变成「点鱼也展开」。 */
+               这里再 toggle 会变成「点鱼也展开」。
+               开关也在这里兜一次：触屏/手写笔在 pointermove 被吃掉时可能只发
+               pointerup 不发 click（与 ✕ 同一类问题）。fire() 里有 250ms 防抖，
+               两条都触发也只会执行一次。 */
             var onUp = function (e) {
               if (apiRef.current.moved && apiRef.current.moved()) return
               var el = e.target.closest && e.target.closest('[data-wm-act]')
               if (!el) return
               var act = el.getAttribute('data-wm-act')
-              if (act === 'close' || act === 'more' || act === 'close-panel') fire(act, el, e)
+              if (act === 'close' || act === 'more' || act === 'close-panel' || act === 'roam') fire(act, el, e)
             }
             holder.addEventListener('pointerdown', onDown)
             holder.addEventListener('click', onClick)
@@ -874,7 +1003,7 @@
           var cur = snap && snap.currency === 'USD' ? '$' : '¥'
           var pct = snap ? snap.pressure || 0 : 0
           var level = pct >= 0.85 ? 'hot' : pct >= 0.5 ? 'warn' : ''
-          var art = pickArt(pct >= 0.6, round)
+          var art = pickArt(pct >= 0.6, round, playing ? null : lock)
 
           var style = pos
             ? { right: pos.right + 'px', bottom: pos.bottom + 'px' }
@@ -911,6 +1040,7 @@
               h('div', { className: 'wm-cardav' }, h(Whale, {
                 size: 84, art: art, level: level, breathe: true, overflow: true,
                 tappable: true, bump: taps, feed: feed, floatText: say, achievement: ach,
+                roamToggle: true, paused: !playing,
               })),
               h(
                 'div',

@@ -10,8 +10,8 @@
 | 项 | 值 |
 |---|---|
 | 文件 | `dist/dsh-whale-meter-1.0.0.zip` |
-| 大小 | 713,707 B（远低于 64 MiB 上限）|
-| SHA-256 | `fd15a8e817f90a323ac298ad231f6b5eff105b7fd387fa035ef586444dca78ed` |
+| 大小 | 724,294 B（远低于 64 MiB 上限）|
+| SHA-256 | `ae9691e3164afde9879c3d0b196c344b43fa7010f0ccb55bf58cd0168bf3be2f` |
 | 条目数 | 33（含仓库侧自检脚本与 KNOWN-GAPS.md；安装包只取其中 23 个） |
 
 **终端安装用的 tgz**（给「下载包安装」的用户核对）
@@ -19,8 +19,8 @@
 | 项 | 值 |
 |---|---|
 | 文件 | `dsh-whale-meter-1.0.0.tgz` |
-| 大小 | 669,771 B |
-| SHA-256 | `81d2c8d42a1078f39676b0f0382f8b5e752abeabd5cf06956f1586163729aeea` |
+| 大小 | 672,357 B |
+| SHA-256 | `b6acb3a4473665d512b53a9c46818c54a6aba55c6b49462c3a7d4d337c5d17b5` |
 | 目录结构 | 根目录下为 `package/`，manifest 在 `package/package.json` |
 
 **包体约 700 KB 的原因**：12 张鲸鱼娘立绘（webp，透明底）占了大头，
