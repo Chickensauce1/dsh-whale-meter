@@ -798,8 +798,20 @@
 
           useEffect(function () {
             var alive = true
+            var timer = null
+            var stop = function () { if (timer !== null) { clearTimeout(timer); timer = null } }
+
+            /* 自适应轮询：命中缓存时 60 秒一次就够；但首轮扫描在后台跑时
+               必须快点回来拿结果，否则用户要对着「正在首次扫描」等一分钟。
+               服务端返回 scanning=true 就用 1.2 秒的快节奏，扫完自动降回 60 秒。 */
+            var schedule = function (delay) {
+              stop()
+              timer = setTimeout(load, delay)
+            }
+
             var load = function () {
-              if (document.hidden) return
+              if (!alive) return
+              if (document.hidden) { schedule(POLL_MS); return }
               fetch('/api/whale-meter', { headers: { accept: 'application/json' } })
                 .then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json() })
                 .then(function (d) {
@@ -814,16 +826,21 @@
                     if (reqRef.current !== null && reqs > reqRef.current) setFeed(function (n) { return n + 1 })
                     reqRef.current = reqs
                   }
+                  schedule(d && d.scanning ? 1200 : POLL_MS)
                 })
-                .catch(function (e) { if (alive) setErr(e.message) })
+                .catch(function (e) {
+                  if (!alive) return
+                  setErr(e.message)
+                  schedule(POLL_MS)
+                })
             }
+
             load()
-            var t = setInterval(load, POLL_MS)
             var onVis = function () { if (!document.hidden) load() }
             document.addEventListener('visibilitychange', onVis)
             return function () {
               alive = false
-              clearInterval(t)
+              stop()
               document.removeEventListener('visibilitychange', onVis)
             }
           }, [])
@@ -919,7 +936,9 @@
                缺 zstd 运行时、DSH_HOME 指到别处、会话文件读不动。
                旧版一律显示 0，用户以为插件坏了又找不到原因。 */
             var healthNote = null
-            if (snap && snap.health) {
+            if (snap && snap.scanning) {
+              healthNote = '正在首次扫描会话日志…'
+            } else if (snap && snap.health) {
               var hh = snap.health
               if (hh.zstd === false) healthNote = '运行时缺 zstd 支持，压缩会话读不了（需 Node 22.15+）'
               else if (hh.scannedFiles === 0) healthNote = '没找到会话目录：' + (hh.sessionsRoot || '未知')

@@ -33,7 +33,8 @@
     "smoke": "node scripts/install-smoke.mjs",
     "ui": "node scripts/browser-check.mjs",
     "precheck": "node scripts/market-precheck.mjs",
-    "release": "npm run art && npm run verify && npm run pack && npm run smoke && npm run ui && npm run precheck"
+    "release": "npm run art && npm run verify && npm run pack && npm run smoke && npm run live && npm run ui && npm run precheck",
+    "live": "node scripts/live-serve-check.mjs"
   },
   "dsh": {
     "id": "dsh-whale-meter",

@@ -185,25 +185,67 @@ class Collector {
     })
   }
 
-  /** 取快照：命中缓存直接返回；否则等一次计算；同时最多一个在途计算。 */
+  /**
+   * 取快照。
+   *
+   * 三种情形：
+   *  - 有缓存且在 TTL 内 → 直接返回；
+   *  - 有旧快照但已过期 → 立即返回旧值，后台续算（用户看到的是上一次的数，不会卡）；
+   *  - **一次都没有**（刚装完/刚重启）→ 不能干等十几秒，返回一份带 progress 的
+   *    空快照并触发后台计算；客户端据此显示「正在首次扫描」，下一轮就拿到真数据。
+   *    这一条是「第一次打开像卡死」的根治办法。
+   *
+   * @param {{ force?: boolean }} [opts]
+   */
   async snapshot({ force = false } = {}) {
     const now = Date.now()
     if (!force && this.cache !== undefined && now - this.cacheAt < CACHE_TTL_MS) return this.cache
-    if (this.inflight === undefined) {
-      this.inflight = this.compute()
-        .then((snap) => {
-          this.cache = snap
-          this.cacheAt = Date.now()
-          return snap
-        })
-        .finally(() => { this.inflight = undefined })
+
+    const startScan = () => {
+      if (this.inflight === undefined) {
+        this.inflight = this.compute()
+          .then((snap) => {
+            this.cache = snap
+            this.cacheAt = Date.now()
+            return snap
+          })
+          .finally(() => { this.inflight = undefined })
+      }
     }
-    if (this.cache !== undefined && !force) {
-      // 有旧快照就立即返回，让后台那份算完再更新
-      void this.inflight.catch(() => {})
-      return this.cache
+
+    if (this.cache !== undefined) {
+      // 有旧值：立刻给旧的，后台续算
+      startScan()
+      if (!force) return this.cache
+    } else if (!force) {
+      // 从来没有过：先给占位快照 + 启动后台扫描，绝不阻塞首个请求
+      startScan()
+      return this.placeholder()
     }
+
+    startScan()
     return await this.inflight
+  }
+
+  /** 首轮扫描尚未完成时的占位快照：结构与真快照一致，只是数为 0 且带 scanning 标记。 */
+  placeholder() {
+    const snap = buildSnapshot({
+      usage: [],
+      requests: [],
+      titles: new Map(),
+      config: this.config,
+      now: Date.now(),
+      health: {
+        ...this.lastHealth,
+        scannedFiles: 0,
+        firstScanDone: false,
+        scanning: true,
+        sessionsRoot: resolveSessionsRoot(),
+        zstd: zstdSupported,
+      },
+    })
+    snap.scanning = true
+    return snap
   }
 }
 
@@ -223,8 +265,12 @@ function readBody(req) {
     req.on('data', (chunk) => {
       bytes += chunk.length
       if (bytes > MAX_BODY_BYTES) {
-        reject(new Error('请求体过大'))
-        req.destroy()
+        // 不能直接 destroy：那会让客户端收到 ECONNRESET 而不是一个能读懂的错误。
+        // 正确做法是标记超限、停止累积，等流自然结束再拒绝（一次性配置请求，浪费不了带宽）。
+        if (body.length <= MAX_BODY_BYTES) {
+          body = ''
+          reject(Object.assign(new Error('请求体过大'), { status: 413 }))
+        }
         return
       }
       body += chunk
@@ -338,7 +384,8 @@ function _apply(ctx) {
               const applied = collector.updateConfig(payload)
               sendJson(res, 200, { ok: true, budget: applied.budget, models: Object.keys(applied.pricing).length })
             } catch (error) {
-              sendJson(res, 400, { error: error?.message ?? String(error) })
+              // 413 与 400 分开：前者是体积问题，后者是内容问题，用户看到的信息不一样
+              sendJson(res, error?.status === 413 ? 413 : 400, { error: error?.message ?? String(error) })
             }
             return
           }
