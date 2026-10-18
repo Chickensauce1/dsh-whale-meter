@@ -10,8 +10,8 @@
 | 项 | 值 |
 |---|---|
 | 文件 | `dist/dsh-whale-meter-1.0.0.zip` |
-| 大小 | 713,374 B（远低于 64 MiB 上限） |
-| SHA-256 | `fd3ca12bfafaee1034a731f1fcbdde91a5f167b447dcc8db5756fe16eaf9571c` |
+| 大小 | 713,707 B（远低于 64 MiB 上限）|
+| SHA-256 | `fd15a8e817f90a323ac298ad231f6b5eff105b7fd387fa035ef586444dca78ed` |
 | 条目数 | 33（含仓库侧自检脚本与 KNOWN-GAPS.md；安装包只取其中 23 个） |
 
 **终端安装用的 tgz**（给「下载包安装」的用户核对）
