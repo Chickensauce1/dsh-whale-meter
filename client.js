@@ -168,21 +168,22 @@
              坑 1（横排）：父容器只有 58/84px 宽，绝对定位元素不设 width 时按 shrink-to-fit 算，
              available width = 容器宽 − left 偏移 ≈ 29px，会被压成竖条。
              所以用 nowrap + width:max-content 让宽度由内容撑开、溢出容器。
-             坑 2（位置）：position:absolute 的 top 指的是「元素顶边」，
-             设成 top:-2px 时元素是从鱼头顶往下排的，文字会压在鱼身上。
-             必须再用 translateY(-100%) 把自己整体挪到顶边之上，
-             这样元素**底边**贴在鱼头顶，文字完整落在鱼头上方。 */
-          '.wm-av .pops{position:absolute;left:50%;top:-6px;',
+             坑 2（位置）：position:absolute 的 top 指元素顶边，只改 top 会把文字排进鱼身；
+             还要 translateY(-100%) 让元素底边贴住鱼头顶。
+             坑 3（余量）：底边刚好贴顶边时，动画起步那几像素会压进鱼头，
+             胶囊态还会糊在 34px 高的胶囊本体上。留 10px 净空才真正「在上方」。 */
+          '.wm-av .pops{position:absolute;left:50%;top:-10px;',
           'transform:translate(-50%,-100%);',
           'white-space:nowrap;width:max-content;max-width:none;',
           'font-size:11px;font-weight:700;color:var(--wm-accent);pointer-events:none;',
-          'text-shadow:0 1px 3px rgba(255,255,255,.95),0 0 6px rgba(255,255,255,.85);',
+          'text-shadow:0 1px 3px rgba(255,255,255,.95),0 0 6px rgba(255,255,255,.85),',
+          '0 0 12px rgba(255,255,255,.7);',
           'animation:wm-floatup 1.5s ease-out forwards;}',
-          /* 起点就是「贴顶边」的位置，再向上飘一点并淡出 */
-          '@keyframes wm-floatup{0%{opacity:0;transform:translate(-50%,-100%) scale(.8)}',
-          '18%{opacity:1;transform:translate(-50%,calc(-100% - 6px)) scale(1)}',
-          '72%{opacity:1;transform:translate(-50%,calc(-100% - 16px)) scale(1)}',
-          '100%{opacity:0;transform:translate(-50%,calc(-100% - 28px)) scale(1)}}',
+          /* 起步只在净空内轻微上浮，全程不再向下探进鱼身 */
+          '@keyframes wm-floatup{0%{opacity:0;transform:translate(-50%,calc(-100% + 4px)) scale(.85)}',
+          '16%{opacity:1;transform:translate(-50%,-100%) scale(1)}',
+          '72%{opacity:1;transform:translate(-50%,calc(-100% - 10px)) scale(1)}',
+          '100%{opacity:0;transform:translate(-50%,calc(-100% - 24px)) scale(1)}}',
 
           /* 实时进食脉冲：发现请求数上涨时，鱼身一缩一张 + 冒气泡 */
           '.wm-av.feeding img{animation:wm-feed .9s cubic-bezier(.34,1.4,.64,1);}',

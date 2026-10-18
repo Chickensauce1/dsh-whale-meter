@@ -51,7 +51,7 @@ const INCLUDE = [
 
 /** 只进 zip，不进 tgz（仓库里该有，安装器用不上）。 */
 const ZIP_ONLY = ['scripts/pack.mjs', 'scripts/browser-check.mjs', 'scripts/verify.mjs',
-  'scripts/install-smoke.mjs', 'scripts/live-serve-check.mjs', 'scripts/widget-dom-check.mjs',
+  'scripts/install-smoke.mjs', 'scripts/live-serve-check.mjs', 'scripts/widget-dom-check.mjs', 'scripts/bubble-position-check.mjs',
   'scripts/market-precheck.mjs', 'scripts/harness.html',
   'scripts/gen-art.mjs', 'tools/push-via-api.mjs', 'docs/MARKET-SUBMISSION.md',
   'KNOWN-GAPS.md', '.gitignore']
