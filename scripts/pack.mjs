@@ -27,7 +27,16 @@ const root = path.join(here, '..')
 const outIdx = process.argv.indexOf('--out')
 const outDir = outIdx > -1 ? path.resolve(process.argv[outIdx + 1]) : path.join(root, 'dist')
 
-/** 打进 tgz 的路径白名单。用白名单而不是黑名单：新增文件不会被意外带出去。 */
+/**
+ * 打进 tgz 的路径白名单 —— **只放运行时真正需要的东西**。
+ *
+ * 自检脚本（verify / install-smoke / browser-check）刻意不放进来，原因有二：
+ *  1. 它们只用 `node:child_process` 跑 `node --check` 与启动无头浏览器，
+ *     装到用户机器上纯属多余；而市场审核的静态扫描看到 child_process
+ *     就要人肉确认一遍，白白拉长审核。
+ *  2. 用户机器上未必有 Edge，跑不起来的脚本放在包里只会制造困惑。
+ * 它们在仓库里照旧可跑（zip 里有），只是不进安装包。
+ */
 const INCLUDE = [
   'index.js',
   'client.js',
@@ -39,11 +48,12 @@ const INCLUDE = [
   'src',
   'assets',
   'scripts/gen-art.mjs',
-  'scripts/verify.mjs',
 ]
 
 /** 只进 zip，不进 tgz（仓库里该有，安装器用不上）。 */
-const ZIP_ONLY = ['scripts/pack.mjs', 'scripts/browser-check.mjs', '.gitignore']
+const ZIP_ONLY = ['scripts/pack.mjs', 'scripts/browser-check.mjs', 'scripts/verify.mjs',
+  'scripts/install-smoke.mjs', 'scripts/market-precheck.mjs', 'tools/push-via-api.mjs',
+  'docs/MARKET-SUBMISSION.md', '.gitignore']
 
 /* ── 文件清单 ────────────────────────────────────────────────────── */
 

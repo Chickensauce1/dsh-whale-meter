@@ -18,7 +18,6 @@
     "cordis.patch.yml",
     "src",
     "assets",
-    "scripts/verify.mjs",
     "scripts/gen-art.mjs",
     "README.md",
     "LICENSE"
@@ -33,7 +32,8 @@
     "pack": "node scripts/pack.mjs",
     "smoke": "node scripts/install-smoke.mjs",
     "ui": "node scripts/browser-check.mjs",
-    "release": "npm run art && npm run verify && npm run pack && npm run smoke"
+    "precheck": "node scripts/market-precheck.mjs",
+    "release": "npm run art && npm run verify && npm run pack && npm run smoke && npm run ui && npm run precheck"
   },
   "dsh": {
     "id": "dsh-whale-meter",
