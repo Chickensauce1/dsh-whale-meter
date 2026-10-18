@@ -4,7 +4,7 @@
 > 点开是紧凑卡片，再点「详情」是全屏面板。核心差异化在**供应商归因**：同一天里
 > DeepSeek 官方、WorkBuddy、各家代理的用量分开算，而不是糊成一个总数。
 
-![whale](assets/whale-stand.svg)
+![whale](assets/whale-stand.webp)
 
 ---
 
@@ -16,7 +16,7 @@
 | **它不做什么** | 不联网、不读密钥、不写会话文件、不改 DSH 配置。唯一的写操作是把自己的价目表存到 `<DSH_HOME>/whale-meter-pricing.json` |
 | **依赖** | 零运行时依赖。只用 Node 内置模块 |
 | **Node** | ≥ 22.15（zstd 会话文件解压需要 `node:zlib` 的 zstd 支持；低于此版本插件仍能启动，但会明确告诉你读不了） |
-| **许可** | MIT，连立绘一起 |
+| **许可** | 代码 MIT；立绘版权归画师（见 `assets/CREDITS.md`） |
 
 ---
 
@@ -114,7 +114,7 @@ DSH → 设置 → 插件 → 停用并移除；或删掉 profile 里的这一�
 | GET | `/api/whale-meter` | 聚合快照 JSON；`?force=1` 强制重扫 |
 | GET | `/api/whale-meter/config` | 当前价目、峰时、预算 |
 | POST | `/api/whale-meter/config` | 更新价目、峰时、预算（请求体上限 64 KB） |
-| GET | `/whale-meter/art/<name>.svg` | 立绘资源（仅 assets/ 下的直接文件名，拒绝路径穿越） |
+| GET | `/whale-meter/art/<name>.webp` | 立绘资源（仅 assets/ 下的直接文件名，拒绝路径穿越） |
 
 ---
 
@@ -129,7 +129,7 @@ DSH → 设置 → 插件 → 停用并移除；或删掉 profile 里的这一�
 | 旧 Node 没有 zstd | 静默返回空串，看起来像「你没有用量」 | 导出 `zstdSupported`，面板与环境自检区明说 |
 | 只认 `model/selection` | 中途换供应商（`llm/retry`）的用量记到上一家头上 | 五个事件源都更新当前 provider，另有模型名反推兜底 |
 | 打包时间戳不固定 | 每次 `sha256` 都不同，别人没法核对 | tar/zip 手写，mtime/uid/gid 归零、条目排序，**同源码两次打包字节一致** |
-| 立绘用社区二创图 | 版权归原作者，公开分发即侵权 | 换成 `scripts/gen-art.mjs` 程序化生成的原创 SVG，MIT 随包 |
+| 立绘的授权边界 | 同人图不能被当成 MIT 代码一起授权，否则对画师不公平 | 保留原图，但 LICENSE 与 `assets/CREDITS.md` 明确写清：MIT 只覆盖代码 |
 
 ---
 
@@ -158,9 +158,8 @@ dsh-whale-meter/
 │   ├── aggregate.js      采集与聚合（纯函数，含 DSH_HOME 解析）
 │   ├── pricing.js        价目、峰谷与计费
 │   └── zstd-frames.js    多帧 zstd 解压 + JSONL 解析
-├── assets/               12 张原创 SVG 立绘（由 gen-art.mjs 生成）
+├── assets/               12 张鲸鱼娘立绘（webp）+ CREDITS.md
 └── scripts/
-    ├── gen-art.mjs       立绘生成器
     ├── verify.mjs        自检
     ├── install-smoke.mjs 安装冒烟测试
     └── pack.mjs          可复现打包
@@ -170,10 +169,19 @@ dsh-whale-meter/
 
 ## 立绘与许可
 
-`assets/*.svg` 是 `scripts/gen-art.mjs` 程序化生成的原创图形 —— 一条圆滚滚的蓝色鲸鱼，
-11 个情绪档靠「眼睛 + 嘴 + 腮红 + 附加符号」组合派生，几何骨架共用同一套。
+`assets/` 下是 DeepSeek 萌拟人化身「鲸鱼娘 / 大肥鱼」的同人立绘，
+从开源表情包仓库（`ChineseBQB` 等）与社区整理站的公开集合中取用，
+本机经抠图管线处理成透明底 PNG，再导出为 WebP。
 
-MIT 许可，可商用、可修改、可再分发，不需要署名（但欢迎）。**不包含任何第三方同人作品。**
+**版权边界（重要）**：这些图像的版权归**画师本人**，
+**不在本项目 MIT 的覆盖范围内**。MIT 只覆盖代码。
+
+- 不得将 `assets/` 下的图单独再授权、售卖或声称为 MIT 作品；
+- 二次分发请保留 `assets/CREDITS.md` 的出处说明；
+- 商业使用前回原作品详情页核对画师署名与授权；
+- 若画师要求下架：删除 `assets/*.webp` 即可，代码会退化为无图而不崩。
+
+逐张来源对应表在 [`assets/CREDITS.md`](assets/CREDITS.md)。
 
 ## 主题适配
 

@@ -216,7 +216,7 @@
       <div class="sub"><b id="bigTok">—</b> token · <span id="bigReq">—</span> 次请求</div>
     </div>
     <div class="art">
-      <img id="artImg" src="/whale-meter/art/whale-stand.svg" alt="大肥鱼" />
+      <img id="artImg" src="/whale-meter/art/whale-stand.webp" alt="大肥鱼" />
       <div class="mood" id="moodTxt"></div>
     </div>
   </div>
@@ -280,7 +280,7 @@
     <span>扫描耗时 <b id="fMs">—</b></span>
     <span>刷新于 <b id="fWhen">—</b></span>
     <span>数据目录 <b id="fRoot">—</b></span>
-    <span>立绘 <b>本仓库原创 · MIT</b></span>
+    <span>立绘 <b>同人图 · 版权归画师（见 CREDITS.md）</b></span>
   </div>
 
   <div class="diag" id="diagNote" hidden></div>
@@ -332,7 +332,7 @@
     var n = round
     var art = (p >= 0.6 && n % 3 === 2) ? ART_URGENT[n % ART_URGENT.length] : ART_ALL[n % ART_ALL.length]
     round += 1
-    $('artImg').src = '/whale-meter/art/' + art + '.svg'
+    $('artImg').src = '/whale-meter/art/' + art + '.webp'
     $('moodTxt').textContent = MOOD[mood] || ''
 
     var cached = t.cacheReadTokens, allIn = t.inputTokens + cached

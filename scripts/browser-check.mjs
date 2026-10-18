@@ -133,7 +133,7 @@ const server = createServer((req, res) => {
     const name = url.slice('/whale-meter/art/'.length)
     const file = path.join(root, 'assets', path.basename(name))
     if (existsSync(file)) {
-      res.writeHead(200, { 'content-type': 'image/svg+xml' })
+      res.writeHead(200, { 'content-type': name.endsWith('.webp') ? 'image/webp' : 'image/png' })
       res.end(readFileSync(file))
       return
     }

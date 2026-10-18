@@ -22,5 +22,16 @@ SOFTWARE.
 
 ---
 
-立绘（assets/*.svg）由本仓库的 scripts/gen-art.mjs 程序化生成，
-同样以 MIT 许可随本仓库分发，不包含任何第三方同人作品。
+立绘与图像资产（assets/*.webp） NOT covered by the MIT license above.
+
+这些图像是 DeepSeek 的萌拟人化身「鲸鱼娘 / 大肥鱼」的同人作品，
+来源为开源表情包仓库（ChineseBQB 等）与社区整理站的公开集合。
+版权归**画师本人**，不属于本项目的作品。
+
+- 本项目的 MIT 许可只覆盖**代码**（index.js / client.js / panel.html / src/ 等）。
+- 不得将 assets/ 下的图像单独再授权、售卖或声称为 MIT 作品。
+- 依赖这些图像的二次分发，需保留 assets/CREDITS.md 的出处说明。
+- 商业使用前请回原作品详情页核对画师署名与授权备注。
+- 若画师要求下架：删除 assets/*.webp 即可，代码会自动退化为无图而不崩。
+
+来源与逐张对应见 assets/CREDITS.md。

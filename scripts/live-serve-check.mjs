@@ -88,9 +88,9 @@ check('面板页 content-type 正确', (page.headers.get('content-type') || '').
 check('面板页非空', html.length > 10_000, `${html.length} 字符`)
 check('面板页无外链脚本', !/<script[^>]+src="https?:/.test(html))
 
-const art = await fetch(`${base}/whale-meter/art/whale-stand.svg`)
+const art = await fetch(`${base}/whale-meter/art/whale-stand.webp`)
 check('立绘 200', art.status === 200, String(art.status))
-check('立绘 content-type 为 svg', (art.headers.get('content-type') || '').includes('svg'),
+check('立绘 content-type 为 webp', (art.headers.get('content-type') || '').includes('webp'),
   art.headers.get('content-type'))
 check('立绘有 content-length', Number(art.headers.get('content-length')) > 500,
   art.headers.get('content-length'))

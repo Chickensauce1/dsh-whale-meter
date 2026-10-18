@@ -538,7 +538,7 @@
             h('img', {
               key: 'i' + animKey,
               className: bump > 0 ? 'pop' : undefined,
-              src: '/whale-meter/art/' + art + '.svg',
+              src: '/whale-meter/art/' + art + '.webp',
               alt: '大肥鱼',
               draggable: false,
             }),

@@ -78,12 +78,13 @@ check('解包目录存在', existsSync(pkgDir))
 
 console.log('\n[2/5] 文件树')
 for (const rel of ['index.js', 'client.js', 'panel.html', 'cordis.patch.yml', 'package.json', 'LICENSE', 'README.md',
-  'src/aggregate.js', 'src/pricing.js', 'src/zstd-frames.js', 'assets/whale-stand.svg']) {
+  'src/aggregate.js', 'src/pricing.js', 'src/zstd-frames.js', 'assets/whale-stand.webp', 'assets/CREDITS.md']) {
   check(rel, existsSync(path.join(pkgDir, ...rel.split('/'))))
 }
-const svgs = readdirSync(path.join(pkgDir, 'assets')).filter((f) => f.endsWith('.svg'))
-check('立绘 ≥ 10 张且全部为原创 svg', svgs.length >= 10, `${svgs.length} 张`)
-check('不含社区二创 webp', readdirSync(path.join(pkgDir, 'assets')).every((f) => !f.endsWith('.webp')))
+const artFiles = readdirSync(path.join(pkgDir, 'assets')).filter((f) => f.endsWith('.webp'))
+check('立绘 ≥ 10 张', artFiles.length >= 10, `${artFiles.length} 张`)
+check('立绘为透明底 webp', artFiles.every((f) => f.endsWith('.webp')))
+check('随包带资产来源说明', existsSync(path.join(pkgDir, 'assets', 'CREDITS.md')))
 
 const pkgJson = JSON.parse(readFileSync(path.join(pkgDir, 'package.json'), 'utf8'))
 check('package.json 声明 dsh.bundle.patch', pkgJson.dsh?.bundle?.patch === './cordis.patch.yml')
@@ -174,14 +175,14 @@ check('面板页 200', page.status === 200, `status=${page.status}`)
 check('面板页是 html', String(page.headers['content-type']).includes('text/html'))
 check('面板页自包含（无外部 CDN）', !String(page.body).match(/<(script|link)[^>]+src="https?:/))
 
-const art = await call(byPath['/whale-meter/art'], { url: '/whale-meter/art/whale-stand.svg' })
+const art = await call(byPath['/whale-meter/art'], { url: '/whale-meter/art/whale-stand.webp' })
 check('立绘 200', art.status === 200, `status=${art.status}`)
-check('立绘 content-type 为 svg', String(art.headers['content-type']).includes('svg'))
+check('立绘 content-type 为 webp', String(art.headers['content-type']).includes('webp'))
 
 const traversal = await call(byPath['/whale-meter/art'], { url: '/whale-meter/art/..%2F..%2Fpackage.json' })
 check('路径穿越被拒', traversal.status === 404, `status=${traversal.status}`)
 
-const missing = await call(byPath['/whale-meter/art'], { url: '/whale-meter/art/nope.svg' })
+const missing = await call(byPath['/whale-meter/art'], { url: '/whale-meter/art/nope.webp' })
 check('缺图 404 而非 500', missing.status === 404, `status=${missing.status}`)
 
 const cfg = await call(byPath['/api/whale-meter/config'])

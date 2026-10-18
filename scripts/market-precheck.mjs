@@ -207,11 +207,15 @@ check('安装包不含开发期自检脚本', devScripts.length === 0, devScript
 /* ── 4. 立绘与可再生成性 ────────────────────────────────────────── */
 
 console.log('\n[4/4] 资产')
-const svgCount = entries.filter((e) => e.name.startsWith('package/assets/') && e.name.endsWith('.svg')).length
-check('立绘为可再生成的 svg', svgCount >= 10, `${svgCount} 张`)
-check('附带立绘生成脚本', byName.has('package/scripts/gen-art.mjs'))
-check('不含第三方图片格式（版权风险）',
-  entries.every((e) => !/\.(webp|jpg|jpeg|gif)$/i.test(e.name)))
+const artCount = entries.filter((e) => e.name.startsWith('package/assets/') && /\.(webp|png)$/i.test(e.name)).length
+check('立绘≥ 10 张', artCount >= 10, `${artCount} 张`)
+check('随包带资产来源说明 CREDITS.md', byName.has('package/assets/CREDITS.md'))
+/* 上游表情包的元素属于同人图，版权归画师，不在 MIT 覆盖范围。
+   市场审核可能要求说明，这里只校验「有没有声明」，不判定合法性。 */
+const credits = byName.get('package/assets/CREDITS.md')?.data.toString('utf8') ?? ''
+check('CREDITS.md 声明了版权归属与分发边界',
+  /\u7248\u6743|\u8bb8\u53ef|copyright/i.test(credits) && credits.length > 300,
+  `${credits.length} 字符`)
 
 /* ── 汇总 ───────────────────────────────────────────────────────── */
 

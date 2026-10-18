@@ -42,7 +42,7 @@ const check = (label, condition, extra) => (condition ? pass(label, extra) : fai
 
 console.log('\n[1/4] 语法检查')
 for (const rel of ['index.js', 'client.js', 'src/aggregate.js', 'src/pricing.js', 'src/zstd-frames.js',
-  'scripts/verify.mjs', 'scripts/pack.mjs', 'scripts/install-smoke.mjs', 'scripts/gen-art.mjs']) {
+  'scripts/verify.mjs', 'scripts/pack.mjs', 'scripts/install-smoke.mjs', 'scripts/live-serve-check.mjs', 'scripts/market-precheck.mjs']) {
   const file = path.join(root, ...rel.split('/'))
   if (!existsSync(file)) { fail(rel, '文件不存在'); continue }
   const r = spawnSync(process.execPath, ['--check', file], { encoding: 'utf8' })
@@ -215,9 +215,11 @@ check('仓库内无写死的用户目录绝对路径', offenders.length === 0, o
 const assetDir = path.join(root, 'assets')
 if (existsSync(assetDir)) {
   const names = readdirSync(assetDir)
-  check('不含社区二创 webp', names.every((n) => !n.endsWith('.webp')), names.filter((n) => n.endsWith('.webp')).join(','))
-  check('立绘全部为 svg', names.filter((n) => n.endsWith('.svg')).length === names.length, `${names.length} 个文件`)
-  check('立绘生成脚本存在', existsSync(path.join(root, 'scripts', 'gen-art.mjs')))
+  const imgs = names.filter((n) => /\.(webp|png)$/i.test(n))
+  check('立绘≥ 10 张', imgs.length >= 10, `${imgs.length} 张`)
+  check('立绘均为 webp（便于透明底与体积）',
+    imgs.filter((n) => n.endsWith('.webp')).length === imgs.length, imgs.join(','))
+  check('有资产来源说明 CREDITS.md', existsSync(path.join(assetDir, 'CREDITS.md')))
 }
 
 /* 客户端与面板引用的立绘必须真的存在（改后缀时最容易漏）。
@@ -229,7 +231,7 @@ if (existsSync(path.join(root, 'client.js')) && existsSync(assetDir)) {
   const refs = arrays.flatMap((body) => [...body.matchAll(/'([a-z][a-z0-9-]+)'/g)].map((m) => m[1]))
   const uniq = [...new Set(refs)]
   check('client.js 立绘池非空', uniq.length > 0, `${uniq.length} 个`)
-  const missing = uniq.filter((n) => !existsSync(path.join(assetDir, `${n}.svg`)))
+  const missing = uniq.filter((n) => !existsSync(path.join(assetDir, `${n}.webp`)))
   check('client.js 引用的立绘都存在', missing.length === 0, missing.join(','))
 
   // 面板页也有自己的一份池子，两边必须一致，否则浮窗和详情页会显示不同的图

@@ -10,8 +10,8 @@
 | 项 | 值 |
 |---|---|
 | 文件 | `dist/dsh-whale-meter-1.0.0.zip` |
-| 大小 | 105,153 B（远低于 64 MiB 上限）|
-| SHA-256 | `c7c3dc2792a1858c93ad8af58091792bf26c60e10b9363a0db8674cda7a53427` |
+| 大小 | 713,374 B（远低于 64 MiB 上限） |
+| SHA-256 | `fd3ca12bfafaee1034a731f1fcbdde91a5f167b447dcc8db5756fe16eaf9571c` |
 | 条目数 | 33（含仓库侧自检脚本与 KNOWN-GAPS.md；安装包只取其中 23 个） |
 
 **终端安装用的 tgz**（给「下载包安装」的用户核对）
@@ -19,9 +19,13 @@
 | 项 | 值 |
 |---|---|
 | 文件 | `dsh-whale-meter-1.0.0.tgz` |
-| 大小 | 54,791 B |
-| SHA-256 | `addeb2a2e7b34978cf029c08d0392ecf138e84fecf1ef974f69687f4e9e3d792` |
+| 大小 | 669,771 B |
+| SHA-256 | `81d2c8d42a1078f39676b0f0382f8b5e752abeabd5cf06956f1586163729aeea` |
 | 目录结构 | 根目录下为 `package/`，manifest 在 `package/package.json` |
+
+**包体约 700 KB 的原因**：12 张鲸鱼娘立绘（webp，透明底）占了大头，
+代码本身只有几十 KB。立绘随包是为了开箱即用，不需要用户额外下载。
+版权归画师，来源与分发边界写在 `assets/CREDITS.md`，MIT 只覆盖代码。
 
 ⚠️ 上传的 zip 必须是**这个**而不是 tgz。站点上传口 `accept=".zip"`，tgz 会被前端挡掉。
 （tgz 是给 `dsh plugin add` 在终端安装用的，两个都在 Release 里。）
