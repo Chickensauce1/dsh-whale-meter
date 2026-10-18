@@ -279,6 +279,56 @@ for (const [label, avId] of [['胶囊态', 'avPill'], ['卡片态', 'avCard']]) 
     m.popRect.bottom <= m.imgRect.top,
     `文字底 ${m.popRect.bottom} vs 图顶 ${m.imgRect.top}（gap ${m.gapAboveImg}px）`)
 
+
+  /* ── 按钮位置：不能压住飘字，也不能压住卡片头部文字 ────────── */
+  if (avId === 'avCard') {
+    const btn = await evalJson(`(function(){
+      var b = document.querySelector('.wm-roam');
+      var pop = document.querySelector('.pops');
+      var who = document.querySelector('.who');
+      var av = document.getElementById('avCard');
+      if (!b) return JSON.stringify({error:'no button'});
+      var br = b.getBoundingClientRect();
+      var ar = av.getBoundingClientRect();
+      var out = {
+        btn: {left:Math.round(br.left), top:Math.round(br.top), right:Math.round(br.right), bottom:Math.round(br.bottom)},
+        av: {left:Math.round(ar.left), top:Math.round(ar.top), right:Math.round(ar.right), bottom:Math.round(ar.bottom)},
+        insideAv: br.left >= ar.left - 2 && br.right <= ar.right + 2 && br.top >= ar.top - 2 && br.bottom <= ar.bottom + 2,
+      };
+      if (pop) {
+        var pr = pop.getBoundingClientRect();
+        out.pop = {left:Math.round(pr.left), top:Math.round(pr.top), right:Math.round(pr.right), bottom:Math.round(pr.bottom)};
+        out.overlapsPop = !(br.right <= pr.left || br.left >= pr.right || br.bottom <= pr.top || br.top >= pr.bottom);
+      }
+      if (who) {
+        var wr = who.getBoundingClientRect();
+        out.who = {left:Math.round(wr.left), top:Math.round(wr.top)};
+        out.overlapsWho = !(br.right <= wr.left || br.left >= wr.right || br.bottom <= wr.top || br.top >= wr.bottom);
+      }
+      return JSON.stringify(out);
+    })()`)
+
+    console.log(`     按钮 ${JSON.stringify(btn.btn)}  立绘 ${JSON.stringify(btn.av)}`)
+    if (btn.overlapsPop !== undefined) {
+      check(`${label}：按钮不压飘字`, btn.overlapsPop === false,
+        btn.pop ? `button=${JSON.stringify(btn.btn)} pop=${JSON.stringify(btn.pop)}` : 'no pop')
+    }
+    check(`${label}：按钮不压卡片文字区`, btn.overlapsWho === false,
+      btn.who ? `button.right=${btn.btn.right} who.left=${btn.who.left}` : 'no who')
+    /* 按钮有意探出立绘右边界一点（挂件感），所以不要求完全落在立绘内。
+       真正的判据是「不能被裁掉」——即父容器没有 overflow:hidden 把它切了。
+       这一点用 elementFromPoint 验：按钮中心点必须命中按钮自己。 */
+    const hitSelf = await evalJson(`(function(){
+      var b = document.querySelector('.wm-roam');
+      var r = b.getBoundingClientRect();
+      var el = document.elementFromPoint(r.left + r.width/2, r.top + r.height/2);
+      return JSON.stringify({ self: el === b, tag: el ? (el.className || el.tagName) : 'null',
+        styles: getComputedStyle(b.parentElement).overflow });
+    })()`)
+    check(`${label}：按钮没被父容器裁掉`, hitSelf.self === true,
+      `命中 ${hitSelf.tag}, 父 overflow=${hitSelf.styles}`)
+  }
+
   check(`${label}：飘字没有被 img 盖住`,
     m.hitIsImg === 0,
     `hits=${JSON.stringify(m.hits)}`)

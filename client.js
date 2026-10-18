@@ -219,7 +219,12 @@
              3) 必须 data-wm-nodrag：否则点它会被 startDrag 当成拖拽起点，
                 松手还可能误判成撸鱼。
              4) 常态半隐形，hover 才浮现——不抢立绘的视觉重心。 */
-          '.wm-roam{position:absolute;right:-5px;top:-3px;z-index:3;',
+          /* 位置：贴立绘**右侧、垂直居中**。
+             旧版在 top:-3px（右上角），会凸进立绘上方那条用来放飘字的净空带，
+             右边还基本贴着卡片的金额文字。改到右侧垂直中间后，
+             上方整条空间都留给飘字，右边也不再碰文字。 */
+          '.wm-roam{position:absolute;right:-9px;top:50%;z-index:3;',
+          'transform:translateY(-50%);',
           'width:18px;height:18px;border-radius:50%;display:flex;align-items:center;',
           'justify-content:center;padding:0;cursor:pointer;pointer-events:auto;',
           'border:1px solid var(--wm-line-strong);background:var(--wm-surface);',
@@ -229,7 +234,7 @@
              悬停或暂停时升到 1。 */
           'opacity:.45;transition:opacity .16s ease,background .13s ease,transform .13s ease;}',
           '.wm-pill:hover .wm-roam,.wm-card:hover .wm-roam,.wm-roam:focus-visible{opacity:1;}',
-          '.wm-roam:hover{background:var(--wm-accent-tint);transform:scale(1.12);}',
+          '.wm-roam:hover{background:var(--wm-accent-tint);transform:translateY(-50%) scale(1.12);}',
           '.wm-roam.paused{opacity:1;color:#fff;border-color:transparent;',
           'background:linear-gradient(135deg,' + DS[450] + ',' + DS[300] + ');}',
           /* 触屏没有 hover，直接常显 */
