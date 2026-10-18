@@ -1,0 +1,11 @@
+# dsh-whale-meter bundle patch
+#
+# 通过 `dsh plugin --profile web add dsh-whale-meter` 安装时，CLI 会把本包并入
+# dsh.profile.bundles，profile 启动时像手工挂载一样合并这条 insert。
+# 客户端半由本包 package.json 的 dsh.client 清单自动加载（platform: web）。
+#
+# 价目、峰时与预算也可以在面板里改；改动会落到 ~/.dsh/whale-meter-pricing.json，
+# 那份文件优先于这里的默认值。
+- insert:
+    - id: dsh-whale-meter
+      name: 'dsh-whale-meter'

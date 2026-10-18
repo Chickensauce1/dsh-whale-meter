@@ -1,0 +1,23 @@
+# 依赖
+node_modules/
+package-lock.json
+pnpm-lock.yaml
+
+# 打包产物
+dist/
+*.tgz
+
+# 临时/调试
+_preview.html
+_preview.png
+_p*.js
+_panel-check.js
+_fix*.py
+*.log
+
+# 编辑器/系统
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+desktop.ini

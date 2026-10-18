@@ -1,0 +1,77 @@
+{
+  "name": "dsh-whale-meter",
+  "version": "1.0.0",
+  "description": "大肥鱼用量表 — DeepSeek Harness 的跨会话 token 用量、金额与供应商分布面板，自带峰谷计费与预算进度环。",
+  "type": "module",
+  "main": "./index.js",
+  "exports": {
+    ".": "./index.js",
+    "./client": "./client.js",
+    "./client.js": "./client.js",
+    "./cordis.patch.yml": "./cordis.patch.yml",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "index.js",
+    "client.js",
+    "panel.html",
+    "cordis.patch.yml",
+    "src",
+    "assets",
+    "scripts/verify.mjs",
+    "scripts/gen-art.mjs",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=22.15.0"
+  },
+  "scripts": {
+    "check": "node --check index.js && node --check client.js && node --check src/aggregate.js && node --check src/pricing.js && node --check src/zstd-frames.js",
+    "verify": "node scripts/verify.mjs",
+    "art": "node scripts/gen-art.mjs",
+    "pack": "node scripts/pack.mjs",
+    "smoke": "node scripts/install-smoke.mjs",
+    "ui": "node scripts/browser-check.mjs",
+    "release": "npm run art && npm run verify && npm run pack && npm run smoke"
+  },
+  "dsh": {
+    "id": "dsh-whale-meter",
+    "name": "大肥鱼用量表",
+    "version": "1.0.0",
+    "permissions": "只读扫描 <DSH_HOME>/sessions 会话日志；注册 /whale-meter 路由、JSON 接口、立绘资源与价目配置；价目写入 <DSH_HOME>/whale-meter-pricing.json",
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "inject": [
+        "@deepseek-ai/dsh-client-runtime",
+        "@deepseek-ai/dsh-client-ui-slots",
+        "@deepseek-ai/dsh-client-ui-sidebar"
+      ],
+      "platform": "web",
+      "immediately": true
+    }
+  },
+  "keywords": [
+    "dsh",
+    "dsh-plugin",
+    "deepseek-harness",
+    "token",
+    "usage",
+    "cost",
+    "dashboard"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Chickensauce1/dsh-whale-meter.git"
+  },
+  "homepage": "https://github.com/Chickensauce1/dsh-whale-meter#readme",
+  "bugs": {
+    "url": "https://github.com/Chickensauce1/dsh-whale-meter/issues"
+  },
+  "license": "MIT",
+  "dependencies": {},
+  "peerDependencies": {},
+  "peerDependenciesMeta": {}
+}
